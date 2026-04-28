@@ -1,0 +1,13 @@
+import uuid
+from abc import ABC, abstractmethod
+from app.models.transcript import TranscriptAnalysis
+
+
+class AnalysisRepository(ABC):
+    @abstractmethod
+    def save(self, analysis: TranscriptAnalysis) -> None:
+        pass
+
+    @abstractmethod
+    def get_by_id(self, id: uuid.UUID) -> TranscriptAnalysis | None:
+        pass
