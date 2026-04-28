@@ -11,3 +11,11 @@ class AnalysisRepository(ABC):
     @abstractmethod
     def get_by_id(self, id: uuid.UUID) -> TranscriptAnalysis | None:
         pass
+
+    @abstractmethod
+    def list_all(self) -> list[TranscriptAnalysis]:
+        pass
+
+    @abstractmethod
+    def delete(self, id: uuid.UUID) -> bool:
+        pass
