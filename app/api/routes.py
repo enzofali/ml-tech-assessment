@@ -20,6 +20,20 @@ class AnalyzeResponse(pydantic.BaseModel):
     action_items: list[str]
 
 
+class BatchAnalyzeRequest(pydantic.BaseModel):
+    transcripts: list[str]
+
+
+@router.post("/transcripts/batch", response_model=list[AnalyzeResponse], status_code=201)
+async def analyze_transcripts_batch(request: BatchAnalyzeRequest, service: ServiceDep):
+    if not request.transcripts:
+        raise fastapi.HTTPException(status_code=422, detail="Transcripts list cannot be empty")
+    if any(not t.strip() for t in request.transcripts):
+        raise fastapi.HTTPException(status_code=422, detail="Each transcript must be non-empty")
+    analyses = await service.analyze_batch(request.transcripts)
+    return [AnalyzeResponse(id=a.id, summary=a.summary, action_items=a.action_items) for a in analyses]
+
+
 @router.post("/transcripts", response_model=AnalyzeResponse, status_code=201)
 def analyze_transcript(request: AnalyzeRequest, service: ServiceDep):
     if not request.transcript.strip():
