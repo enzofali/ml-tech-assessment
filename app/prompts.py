@@ -6,6 +6,7 @@ RAW_USER_PROMPT = """Given the transcript below, generate:
                     1. A brief, insightful summary highlighting key points discussed.
                     2. A clear, structured list of recommended next actions.
 
-                    Transcript:
-                    {transcript}"""
+                    <transcript>
+                    {transcript}
+                    </transcript>"""
 

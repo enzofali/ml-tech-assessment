@@ -52,3 +52,9 @@ class TranscriptService:
 
     def get_by_id(self, id: uuid.UUID) -> TranscriptAnalysis | None:
         return self._repository.get_by_id(id)
+
+    def list_all(self) -> list[TranscriptAnalysis]:
+        return self._repository.list_all()
+
+    def delete(self, id: uuid.UUID) -> bool:
+        return self._repository.delete(id)
