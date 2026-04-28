@@ -4,15 +4,22 @@ from app.models.transcript import TranscriptAnalysis, TranscriptAnalysisDTO
 from app.ports.llm import LLm
 from app.ports.repository import AnalysisRepository
 from app.prompts import SYSTEM_PROMPT, RAW_USER_PROMPT
+from app.text_normalizer import NormalizationStrategy, normalize
 
 
 class TranscriptService:
-    def __init__(self, llm: LLm, repository: AnalysisRepository) -> None:
+    def __init__(
+        self,
+        llm: LLm,
+        repository: AnalysisRepository,
+        normalization_strategy: NormalizationStrategy = NormalizationStrategy.CONSERVATIVE,
+    ) -> None:
         self._llm = llm
         self._repository = repository
+        self._normalization_strategy = normalization_strategy
 
     def analyze(self, transcript: str) -> TranscriptAnalysis:
-        user_prompt = RAW_USER_PROMPT.format(transcript=transcript)
+        user_prompt = RAW_USER_PROMPT.format(transcript=normalize(transcript, self._normalization_strategy))
         dto: TranscriptAnalysisDTO = self._llm.run_completion(
             system_prompt=SYSTEM_PROMPT,
             user_prompt=user_prompt,
@@ -27,7 +34,7 @@ class TranscriptService:
         return analysis
 
     async def analyze_async(self, transcript: str) -> TranscriptAnalysis:
-        user_prompt = RAW_USER_PROMPT.format(transcript=transcript)
+        user_prompt = RAW_USER_PROMPT.format(transcript=normalize(transcript, self._normalization_strategy))
         dto: TranscriptAnalysisDTO = await self._llm.run_completion_async(
             system_prompt=SYSTEM_PROMPT,
             user_prompt=user_prompt,
