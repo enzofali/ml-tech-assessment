@@ -5,6 +5,7 @@ from app.ports.llm import LLm
 from app.ports.repository import AnalysisRepository
 from app.prompts import SYSTEM_PROMPT, RAW_USER_PROMPT
 from app.text_normalizer import NormalizationStrategy, normalize
+from app.transcript_parser import parse
 
 
 class TranscriptService:
@@ -18,8 +19,17 @@ class TranscriptService:
         self._repository = repository
         self._normalization_strategy = normalization_strategy
 
+    def _build_prompt(self, transcript: str) -> str:
+        parsed = normalize(parse(transcript), self._normalization_strategy)
+        if not parsed.strip():
+            raise ValueError(
+                "Transcript produced no content after parsing. "
+                "The input may be empty, whitespace-only, or a malformed VTT/SRT file."
+            )
+        return RAW_USER_PROMPT.format(transcript=parsed)
+
     def analyze(self, transcript: str) -> TranscriptAnalysis:
-        user_prompt = RAW_USER_PROMPT.format(transcript=normalize(transcript, self._normalization_strategy))
+        user_prompt = self._build_prompt(transcript)
         dto: TranscriptAnalysisDTO = self._llm.run_completion(
             system_prompt=SYSTEM_PROMPT,
             user_prompt=user_prompt,
@@ -34,7 +44,7 @@ class TranscriptService:
         return analysis
 
     async def analyze_async(self, transcript: str) -> TranscriptAnalysis:
-        user_prompt = RAW_USER_PROMPT.format(transcript=normalize(transcript, self._normalization_strategy))
+        user_prompt = self._build_prompt(transcript)
         dto: TranscriptAnalysisDTO = await self._llm.run_completion_async(
             system_prompt=SYSTEM_PROMPT,
             user_prompt=user_prompt,
@@ -48,7 +58,11 @@ class TranscriptService:
         self._repository.save(analysis)
         return analysis
 
-    async def analyze_batch(self, transcripts: list[str], max_concurrent: int = 5) -> list[TranscriptAnalysis]:
+    async def analyze_batch(
+        self,
+        transcripts: list[str],
+        max_concurrent: int = 5,
+    ) -> list[TranscriptAnalysis]:
         semaphore = asyncio.Semaphore(max_concurrent)
 
         async def bounded(transcript: str) -> TranscriptAnalysis:
