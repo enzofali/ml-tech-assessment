@@ -5,7 +5,6 @@ import pydantic
 import fastapi
 from app.api.dependencies import get_service
 from app.services.transcript import TranscriptService
-
 router = fastapi.APIRouter(tags=["transcripts"])
 
 ServiceDep = Annotated[TranscriptService, fastapi.Depends(get_service)]
@@ -13,7 +12,11 @@ ServiceDep = Annotated[TranscriptService, fastapi.Depends(get_service)]
 
 class AnalyzeRequest(pydantic.BaseModel):
     transcript: str = pydantic.Field(
-        description="Plain-text transcript in any conversational format (speaker labels, timestamps, raw notes).",
+        description=(
+            "Transcript content. Accepted formats are auto-detected from the content: "
+            "plain text, WebVTT (starts with `WEBVTT`), or SRT. "
+            "No `format` field needed — just send the raw file body."
+        ),
         min_length=1,
         max_length=50_000,
     )
@@ -29,13 +32,41 @@ class AnalyzeRequest(pydantic.BaseModel):
         json_schema_extra={
             "examples": [
                 {
-                    "transcript": (
-                        "Alice | Coach: How have you been since our last session?\n\n"
-                        "Bob: Much better. I finished the project report.\n\n"
-                        "Alice | Coach: What helped you push through?\n\n"
-                        "Bob: Breaking it into daily tasks."
-                    )
-                }
+                    "summary": "Plain text",
+                    "value": {
+                        "transcript": (
+                            "Alice | Coach: How have you been since our last session?\n\n"
+                            "Bob: Much better. I finished the project report.\n\n"
+                            "Alice | Coach: What helped you push through?\n\n"
+                            "Bob: Breaking it into daily tasks."
+                        ),
+                    },
+                },
+                {
+                    "summary": "WebVTT (Zoom / Teams / Meet export)",
+                    "value": {
+                        "transcript": (
+                            "WEBVTT\n\n"
+                            "00:00:01.000 --> 00:00:04.000\n"
+                            "Alice | Coach: How have you been since our last session?\n\n"
+                            "00:00:05.000 --> 00:00:08.000\n"
+                            "Bob: Much better. I finished the project report."
+                        ),
+                    },
+                },
+                {
+                    "summary": "SRT",
+                    "value": {
+                        "transcript": (
+                            "1\n"
+                            "00:00:01,000 --> 00:00:04,000\n"
+                            "Alice | Coach: How have you been since our last session?\n\n"
+                            "2\n"
+                            "00:00:05,000 --> 00:00:08,000\n"
+                            "Bob: Much better. I finished the project report."
+                        ),
+                    },
+                },
             ]
         }
     )
@@ -50,7 +81,7 @@ class AnalyzeResponse(pydantic.BaseModel):
 
 class BatchAnalyzeRequest(pydantic.BaseModel):
     transcripts: list[Annotated[str, pydantic.Field(min_length=1, max_length=50_000)]] = pydantic.Field(
-        description="List of plain-text transcripts to analyze concurrently. Each item must be non-empty.",
+        description="List of transcripts to analyze concurrently. Format is auto-detected per item.",
         min_length=1,
         max_length=50,
     )
@@ -68,8 +99,8 @@ class BatchAnalyzeRequest(pydantic.BaseModel):
                 {
                     "transcripts": [
                         "Alice | Coach: What is your main goal this month?\n\nBob: Ship the new feature.",
-                        "[00:00] Sarah: We need to improve team communication.\n[00:30] Manager: Agreed. Weekly syncs?",
-                    ]
+                        "WEBVTT\n\n00:00:01.000 --> 00:00:04.000\nAlice | Coach: How did the presentation go?\n\n00:00:05.000 --> 00:00:08.000\nBob: Really well, the client approved.",
+                    ],
                 }
             ]
         }
@@ -108,12 +139,14 @@ def list_transcripts(service: ServiceDep):
     ),
     responses={
         201: {"description": "All transcripts analyzed successfully."},
-        422: {"description": "Empty list or any transcript is blank."},
+        422: {"description": "Empty list, blank transcript, or malformed VTT/SRT (re-upload required)."},
     },
 )
 async def analyze_transcripts_batch(request: BatchAnalyzeRequest, service: ServiceDep):
-    analyses = await service.analyze_batch(request.transcripts)
-    return analyses
+    try:
+        return await service.analyze_batch(request.transcripts)
+    except ValueError as e:
+        raise fastapi.HTTPException(status_code=422, detail=str(e))
 
 
 @router.post(
@@ -128,11 +161,14 @@ async def analyze_transcripts_batch(request: BatchAnalyzeRequest, service: Servi
     ),
     responses={
         201: {"description": "Transcript analyzed and stored successfully."},
-        422: {"description": "Transcript is empty or whitespace-only."},
+        422: {"description": "Transcript is empty, whitespace-only, or a malformed VTT/SRT file (re-upload required)."},
     },
 )
 def analyze_transcript(request: AnalyzeRequest, service: ServiceDep):
-    return service.analyze(request.transcript)
+    try:
+        return service.analyze(request.transcript)
+    except ValueError as e:
+        raise fastapi.HTTPException(status_code=422, detail=str(e))
 
 
 @router.get(
