@@ -1,15 +1,43 @@
 """
-Transcript format detection and parsing — converts structured formats to plain
-text before normalization and LLM injection.
+Transcript format detection and parsing.
 
-Pipeline: raw input → parse() → normalize() → LLM
+WHY THIS EXISTS
+---------------
+This product analyzes business coaching sessions: a coach uploads a transcript
+and the API returns a summary and action items via LLM.
 
-Supported formats (auto-detected from content):
-  plain  — free-form text, no transformation
+The assessment spec says "plain text transcripts" — but that is not how
+recordings come out of the tools coaches actually use. Zoom, Google Meet, and
+Microsoft Teams all export transcripts as WebVTT or SRT files by default. If
+the API only accepted plain text, coaches would have to manually strip
+timestamps, sequence numbers, and markup before every upload, which is
+unrealistic in day-to-day use.
+
+This module bridges that gap:
+
+  1. Format-transparent uploads — the caller sends whatever the platform
+     exported; no conversion step required on the client side.
+
+  2. Cleaner LLM input — timestamps, cue numbers, and HTML tags consume tokens
+     and add noise the model does not need. A raw VTT cue like
+     `<v Alice>Hello</v>` becomes `Alice: Hello` before hitting the prompt.
+
+  3. Fail-fast validation — if a file carries VTT/SRT signatures but yields no
+     readable cues (corrupted export), a 422 with a clear re-upload message is
+     returned before any LLM tokens are spent.
+
+PIPELINE
+--------
+  raw input → parse() → normalize() → LLM
+
+SUPPORTED FORMATS (auto-detected from content)
+-----------------------------------------------
+  plain  — free-form text, returned unchanged
   VTT    — WebVTT (Zoom, Teams, Google Meet native export)
   SRT    — SubRip (legacy, still common in transcription services)
 
-Errors:
+ERRORS
+------
   ValueError                         — input is empty or whitespace-only
   UnsupportedTranscriptFormatError   — input carries VTT/SRT signatures but no
                                        readable cues can be recovered
