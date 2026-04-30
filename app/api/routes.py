@@ -4,6 +4,7 @@ from typing import Annotated
 import pydantic
 import fastapi
 from app.api.dependencies import get_service
+from app.ports.llm import LLMError
 from app.services.transcript import TranscriptService
 router = fastapi.APIRouter(tags=["transcripts"])
 
@@ -147,6 +148,8 @@ async def analyze_transcripts_batch(request: BatchAnalyzeRequest, service: Servi
         return await service.analyze_batch(request.transcripts)
     except ValueError as e:
         raise fastapi.HTTPException(status_code=422, detail=str(e))
+    except LLMError as e:
+        raise fastapi.HTTPException(status_code=e.status_code, detail=str(e))
 
 
 @router.post(
@@ -169,6 +172,8 @@ def analyze_transcript(request: AnalyzeRequest, service: ServiceDep):
         return service.analyze(request.transcript)
     except ValueError as e:
         raise fastapi.HTTPException(status_code=422, detail=str(e))
+    except LLMError as e:
+        raise fastapi.HTTPException(status_code=e.status_code, detail=str(e))
 
 
 @router.get(

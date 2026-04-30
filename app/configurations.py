@@ -1,10 +1,10 @@
 import pydantic_settings
+from typing import Literal
 
 
 class EnvConfigs(pydantic_settings.BaseSettings):
-    model_config =pydantic_settings.SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+    model_config = pydantic_settings.SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
-    OPENAI_API_KEY: str
-    OPENAI_MODEL: str = "gpt-4o-2024-08-06"
-
-
+    LLM_PROVIDER: Literal["openai", "gemini", "groq"] = "groq"
+    LLM_API_KEY: str
+    LLM_MODEL: str = "llama-3.3-70b-versatile"
