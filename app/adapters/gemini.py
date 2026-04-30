@@ -1,6 +1,7 @@
 import openai
 import pydantic
 from app import ports
+from app.ports.llm import LLMError
 
 _GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/"
 
@@ -12,23 +13,29 @@ class GeminiAdapter(ports.LLm):
         self._aclient = openai.AsyncOpenAI(api_key=api_key, base_url=_GEMINI_BASE_URL)
 
     def run_completion(self, system_prompt: str, user_prompt: str, dto: type[pydantic.BaseModel]) -> pydantic.BaseModel:
-        completion = self._client.beta.chat.completions.parse(
-            model=self._model,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt},
-            ],
-            response_format=dto,
-        )
-        return completion.choices[0].message.parsed
+        try:
+            completion = self._client.beta.chat.completions.parse(
+                model=self._model,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                response_format=dto,
+            )
+            return completion.choices[0].message.parsed
+        except (openai.OpenAIError, pydantic.ValidationError) as exc:
+            raise LLMError(str(exc)) from exc
 
     async def run_completion_async(self, system_prompt: str, user_prompt: str, dto: type[pydantic.BaseModel]) -> pydantic.BaseModel:
-        completion = await self._aclient.beta.chat.completions.parse(
-            model=self._model,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt},
-            ],
-            response_format=dto,
-        )
-        return completion.choices[0].message.parsed
+        try:
+            completion = await self._aclient.beta.chat.completions.parse(
+                model=self._model,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                response_format=dto,
+            )
+            return completion.choices[0].message.parsed
+        except (openai.OpenAIError, pydantic.ValidationError) as exc:
+            raise LLMError(str(exc)) from exc
