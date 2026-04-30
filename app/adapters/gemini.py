@@ -2,8 +2,10 @@ import openai
 import pydantic
 from app import ports
 from app.ports.llm import LLMError
+from app.metrics import llm_requests_total, record_llm_error, record_llm_usage
 
 _GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/"
+_PROVIDER = "gemini"
 
 
 class GeminiAdapter(ports.LLm):
@@ -22,8 +24,12 @@ class GeminiAdapter(ports.LLm):
                 ],
                 response_format=dto,
             )
+            if completion.usage:
+                record_llm_usage(_PROVIDER, self._model, completion.usage.prompt_tokens, completion.usage.completion_tokens)
+            llm_requests_total.labels(provider=_PROVIDER, model=self._model, status="success").inc()
             return completion.choices[0].message.parsed
         except (openai.OpenAIError, pydantic.ValidationError) as exc:
+            record_llm_error(_PROVIDER, self._model, exc)
             raise LLMError(str(exc)) from exc
 
     async def run_completion_async(self, system_prompt: str, user_prompt: str, dto: type[pydantic.BaseModel]) -> pydantic.BaseModel:
@@ -36,6 +42,10 @@ class GeminiAdapter(ports.LLm):
                 ],
                 response_format=dto,
             )
+            if completion.usage:
+                record_llm_usage(_PROVIDER, self._model, completion.usage.prompt_tokens, completion.usage.completion_tokens)
+            llm_requests_total.labels(provider=_PROVIDER, model=self._model, status="success").inc()
             return completion.choices[0].message.parsed
         except (openai.OpenAIError, pydantic.ValidationError) as exc:
+            record_llm_error(_PROVIDER, self._model, exc)
             raise LLMError(str(exc)) from exc
