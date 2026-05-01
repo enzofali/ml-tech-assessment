@@ -169,33 +169,54 @@ The API exposes a `/metrics` endpoint in Prometheus format. Three layers of inst
 
 Provided automatically by `prometheus-fastapi-instrumentator` and the default Prometheus process collector:
 
-- `http_request_duration_seconds` — latency histogram by method, path, status code
-- `process_cpu_seconds_total`, `process_resident_memory_bytes`, `process_open_fds`
+| Metric                              | Type      | Description                              |
+|-------------------------------------|-----------|------------------------------------------|
+| `http_request_duration_seconds`     | Histogram | Latency by `method`, `handler`, `status` |
+| `http_request_duration_seconds_count` | Counter | Request count (used for rate / error %)  |
+| `process_cpu_seconds_total`         | Counter   | Cumulative CPU time                      |
+| `process_resident_memory_bytes`     | Gauge     | Resident memory (RSS)                    |
+| `process_virtual_memory_bytes`      | Gauge     | Virtual memory                           |
+| `process_open_fds` / `process_max_fds` | Gauge  | Open / max file descriptors              |
+| `process_start_time_seconds`        | Gauge     | Unix start time (used for uptime)        |
 
 ### Grafana dashboard
 
-When running via Docker Compose, Grafana is pre-configured with Prometheus as the default data source.
+When running via Docker Compose, Grafana auto-loads a pre-built dashboard called **Transcript API** with 21 panels covering every layer of the system. No manual setup — just open http://localhost:3000 (login `admin` / `admin`) → **Dashboards** → **Transcript API**.
 
-1. Open http://localhost:3000 → log in with `admin` / `admin`
-2. Go to **Explore** → select **Prometheus**
-3. Start querying — useful starters:
+#### Dashboard layout
+
+| Row | Panels | What you read here |
+|-----|--------|--------------------|
+| **1 — Health stats** | Successful Requests · Total Cost · Stored Analyses · LLM Errors · Uptime | Single-glance health. Errors panel turns red the moment any LLM call fails. Uptime catches crash loops and unexpected restarts. |
+| **2 — LLM performance** | Request Rate (by status) · Latency p50/p95/p99 | Are calls succeeding? Are they fast? Diverging p50 vs p99 = long-tail stalls (usually the LLM provider). |
+| **3 — Cost & errors** | Token Consumption Rate · Errors by Type | Why is cost going up — more prompts, longer outputs, or model change? Error breakdown by `rate_limit / authentication / timeout / …` tells you who to call. |
+| **4 — HTTP latency** | Request Latency p95 by endpoint (full width) | End-to-end API latency including LLM time. Compare `/transcripts` vs `/transcripts/batch`. |
+| **5 — Business metrics** | Cost ($/hr) · Batch Size Distribution · Repository Operations | Spend acceleration in real time. Batch p95 vs avg shows whether occasional huge batches are skewing load. Repo ops catches `get — miss` spikes (404s). |
+| **6 — Process resources** | CPU · Memory (RSS + Virtual) · File Descriptors | Container-level health. FDs trending toward `max` = leak. |
+| **7 — HTTP traffic** | Request Rate by endpoint · 4xx / 5xx Error Rate | Traffic patterns and HTTP-level failures. |
+| **8 — SLI / efficiency** | Cost per Analysis · Tokens per Request · Error Rate (%) | The numbers you actually alert on. Error rate as a ratio (not absolute count) is the proper SLI. |
+
+#### Custom queries
+
+Need something not on the dashboard? Use **Explore** → select **Prometheus**:
 
 ```promql
 # LLM p95 latency per provider/model
-histogram_quantile(0.95, rate(llm_request_duration_seconds_bucket[5m]))
+histogram_quantile(0.95, sum by (le, provider, model) (rate(llm_request_duration_seconds_bucket[5m])))
 
-# Token rate per model
-rate(llm_tokens_total[5m])
+# Cost per hour at current rate
+rate(llm_cost_usd_total[5m]) * 3600
 
-# Error breakdown
-llm_errors_total
+# Repository miss rate (404s)
+rate(repository_operations_total{result="miss"}[5m])
 
-# Request latency p95
-histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m]))
-
-# Repository size over time
-repository_size
+# Average tokens per request
+rate(llm_tokens_total[5m]) / rate(llm_requests_total{status="success"}[5m])
 ```
+
+#### Tuning the dashboard
+
+The dashboard JSON lives at [grafana/dashboards/transcript-api.json](grafana/dashboards/transcript-api.json) and reloads every 30s. Edit it on disk or click **Edit** in Grafana then **Save JSON to file** — the file is the source of truth.
 
 ---
 
