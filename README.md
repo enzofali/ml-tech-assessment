@@ -237,3 +237,45 @@ poetry run pytest tests/services/ tests/repositories/
 ```
 
 > `tests/adapters/` requires a live API key and is excluded from the default run.
+
+---
+
+## Next Steps
+
+The current deployment is a **monolith** — API, Prometheus, and Grafana run together via Docker Compose on a single host. This is intentional as a starting point. The natural evolution is to decouple into a production-grade architecture:
+
+### Target architecture
+
+```
+Internet
+    │
+    ▼
+Nginx Ingress (LoadBalancer)
+    ├── /api          → API Deployment (N replicas)
+    ├── /             → Frontend Deployment
+    └── grafana.x.com → Grafana (via kube-prometheus-stack)
+
+K8s Cluster
+    ├── api-deployment         FastAPI × N replicas
+    ├── frontend-deployment    React / Next.js
+    ├── postgres StatefulSet   PersistentVolumeClaim (decoupled store)
+    ├── prometheus             Scrapes API + K8s node metrics
+    └── grafana                Pre-loaded dashboard, viewer access for reviewers
+```
+
+### Migration path
+
+1. **Persistent store** — swap `InMemoryAnalysisRepository` for a `PostgresAnalysisRepository` (the port interface stays unchanged). Add a Postgres `StatefulSet` + `PersistentVolumeClaim` to the cluster.
+
+2. **Frontend** — build a dedicated UI (separate deployment), served independently behind the same Ingress.
+
+3. **Kubernetes manifests** — write `Deployment`, `Service`, `Ingress`, and `PVC` manifests (or use Helm). Recommended cluster: GKE Autopilot (free tier) or DigitalOcean DOKS (~$12/mo).
+
+4. **Monitoring** — install [`kube-prometheus-stack`](https://github.com/prometheus-community/helm-charts/tree/main/charts/kube-prometheus-stack) via Helm. This auto-wires Prometheus + Grafana + AlertManager and adds K8s node/pod metrics on top of the existing app metrics. Expose Grafana via Ingress at `grafana.your-domain.com`.
+   ```bash
+   helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+   helm install monitoring prometheus-community/kube-prometheus-stack \
+     --namespace monitoring --create-namespace
+   ```
+   Alternatively, use **Grafana Cloud** (free tier, 10k series) with `remote_write` from in-cluster Prometheus — user gets a public URL with a read-only Viewer account.
+
