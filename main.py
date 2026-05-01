@@ -1,4 +1,5 @@
 import fastapi
+from prometheus_fastapi_instrumentator import Instrumentator
 from app.api import routes
 
 app = fastapi.FastAPI(
@@ -26,3 +27,5 @@ and returns a concise **summary** of key discussion points plus a list of **acti
 )
 
 app.include_router(routes.router)
+
+Instrumentator().instrument(app).expose(app, endpoint="/metrics", include_in_schema=False)

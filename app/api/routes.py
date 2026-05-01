@@ -4,6 +4,7 @@ from typing import Annotated
 import pydantic
 import fastapi
 from app.api.dependencies import get_service
+from app.metrics import batch_size
 from app.ports.llm import LLMError
 from app.services.transcript import TranscriptService
 router = fastapi.APIRouter(tags=["transcripts"])
@@ -144,6 +145,7 @@ def list_transcripts(service: ServiceDep):
     },
 )
 async def analyze_transcripts_batch(request: BatchAnalyzeRequest, service: ServiceDep):
+    batch_size.observe(len(request.transcripts))
     try:
         return await service.analyze_batch(request.transcripts)
     except ValueError as e:
