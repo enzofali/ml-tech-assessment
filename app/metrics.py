@@ -1,6 +1,6 @@
 import openai
 import pydantic
-from prometheus_client import Counter, Gauge
+from prometheus_client import Counter, Gauge, Histogram
 
 # USD per 1M tokens: {model: {input, output}}
 # Groq dev-tier models are free; set to 0.0 so cost counter stays at 0 rather than raising.
@@ -48,6 +48,19 @@ repository_operations_total = Counter(
 repository_size = Gauge(
     "repository_size",
     "Number of analyses currently stored in the repository",
+)
+
+llm_request_duration_seconds = Histogram(
+    "llm_request_duration_seconds",
+    "LLM completion latency in seconds",
+    ["provider", "model"],
+    buckets=[0.5, 1, 2, 5, 10, 20, 30, 60],
+)
+
+batch_size = Histogram(
+    "batch_size",
+    "Number of transcripts per batch request",
+    buckets=[1, 2, 5, 10, 20, 50],
 )
 
 
