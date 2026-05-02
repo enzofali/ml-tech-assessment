@@ -220,6 +220,45 @@ The dashboard JSON lives at [grafana/dashboards/transcript-api.json](grafana/das
 
 ---
 
+## Deployment
+
+### Cloudflare Tunnel
+
+**1. Install cloudflared**
+
+```bash
+# macOS
+brew install cloudflare/cloudflare/cloudflared
+
+# Linux
+curl -L https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 \
+  -o /usr/local/bin/cloudflared && chmod +x /usr/local/bin/cloudflared
+```
+
+**2. Start the stack**
+
+```bash
+docker compose up -d
+```
+
+**3. Open a tunnel for each service** (separate terminals)
+
+```bash
+cloudflared tunnel --url http://localhost:8000   # API + Swagger
+cloudflared tunnel --url http://localhost:3000   # Grafana dashboard
+```
+
+Each command prints a public `https://*.trycloudflare.com` URL. Share both with the reviewer:
+
+| Service | URL |
+|---------|-----|
+| API + Swagger | `https://xxxx.trycloudflare.com/docs` |
+| Grafana | `https://yyyy.trycloudflare.com` (login: `admin` / `admin`) |
+
+> The tunnel stays alive as long as the terminal is open. Your machine is the server.
+
+---
+
 ## Running Tests
 
 ```bash
