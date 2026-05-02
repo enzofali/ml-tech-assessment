@@ -1,0 +1,47 @@
+1
+00:00:00,000 --> 00:00:08,500
+Elena | Coach: Let's start with a quick check-in. How is everyone feeling about the sprint we just closed?
+
+2
+00:00:09,000 --> 00:00:18,200
+David: Relieved, honestly. We shipped the payment flow but I think we took on too much and it showed in the last two days.
+
+3
+00:00:18,800 --> 00:00:27,400
+Priya: Agreed. We had three blockers that weren't flagged until Wednesday. I think our estimation process needs work.
+
+4
+00:00:28,000 --> 00:00:36,600
+Elena | Coach: What's one thing that would have made the sprint go smoother if you'd done it on day one?
+
+5
+00:00:37,200 --> 00:00:47,800
+David: A clearer definition of done for the payment ticket. We had three different interpretations across the team.
+
+6
+00:00:48,400 --> 00:00:58,000
+Priya: And earlier dependency mapping. We didn't know we were blocked on the backend team until it was already urgent.
+
+7
+00:00:58,600 --> 00:01:08,200
+Elena | Coach: So definition of done and dependency mapping upfront. Are those things you can add to your sprint kick-off checklist?
+
+8
+00:01:08,800 --> 00:01:18,400
+David: Yes, I can own creating that checklist by end of this week.
+
+9
+00:01:19,000 --> 00:01:28,600
+Priya: And I'll set up a short dependency review slot at the start of every sprint — thirty minutes max.
+
+10
+00:01:29,200 --> 00:01:38,800
+Elena | Coach: Great. Let's revisit both in two weeks and see if they made a difference. What's the team's energy level going into this next sprint?
+
+11
+00:01:39,400 --> 00:01:48,000
+David: Better now that we've talked. I think we just needed to name the problems out loud.
+
+12
+00:01:48,600 --> 00:01:55,000
+Elena | Coach: That's exactly what retrospectives are for. Good work today, both of you.

@@ -1,17 +1,26 @@
 [tool.poetry]
 name = "ml-tech-assessment"
-version = "0.1.0"
+version = "0.0.1"
 description = ""
 authors = ["jhonvalderrama <jhonvalderrama@aceup.com>"]
 readme = "README.md"
+package-mode = false
 
 [tool.poetry.dependencies]
 python = "^3.12"
 openai = "^1.76.2"
 pydantic-settings = "^2.9.1"
 pytest = "^8.3.5"
+fastapi = "^0.115.0"
+uvicorn = "^0.34.0"
+httpx = "^0.28.1"
+prometheus-client = "^0.21.0"
+prometheus-fastapi-instrumentator = "^7.0.0"
 
 
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.pytest.ini_options]
+addopts = "--ignore=tests/adapters"
