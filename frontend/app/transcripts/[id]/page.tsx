@@ -29,7 +29,7 @@ export default async function TranscriptPage({ params }: { params: Promise<{ id:
 
       <div className="space-y-1">
         <h1 className="text-2xl font-bold text-slate-900">Analysis</h1>
-        <div className="flex items-center gap-1.5 text-xs text-slate-400">
+        <div className="flex items-center gap-1.5 text-xs text-slate-600">
           <Clock className="w-3 h-3" />
           {new Date(analysis.created_at).toLocaleDateString("en-US", {
             weekday: "long",
@@ -70,7 +70,7 @@ export default async function TranscriptPage({ params }: { params: Promise<{ id:
         </ul>
       </div>
 
-      <p className="text-xs text-slate-300 font-mono">ID: {analysis.id}</p>
+      <p className="text-xs text-slate-500 font-mono">ID: {analysis.id}</p>
     </div>
   );
 }

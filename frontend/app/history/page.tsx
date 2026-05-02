@@ -49,7 +49,7 @@ export default async function HistoryPage() {
               <p className="text-sm text-slate-800 line-clamp-2 leading-relaxed">
                 {analysis.summary}
               </p>
-              <div className="flex items-center gap-4 text-xs text-slate-400">
+              <div className="flex items-center gap-4 text-xs text-slate-600">
                 <span className="flex items-center gap-1">
                   <Clock className="w-3 h-3" />
                   {new Date(analysis.created_at).toLocaleDateString("en-US", {

@@ -20,6 +20,19 @@ export async function analyzeTranscript(transcript: string): Promise<Analysis> {
   return res.json();
 }
 
+export async function analyzeTranscripts(transcripts: string[]): Promise<Analysis[]> {
+  const res = await fetch(`${API_URL}/transcripts/batch`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ transcripts }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { detail?: string }).detail ?? `Request failed: ${res.status}`);
+  }
+  return res.json();
+}
+
 export async function listAnalyses(): Promise<Analysis[]> {
   const res = await fetch(`${API_URL}/transcripts`, { cache: "no-store" });
   if (!res.ok) throw new Error("Failed to fetch analyses");
