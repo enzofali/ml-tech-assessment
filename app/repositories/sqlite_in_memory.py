@@ -49,6 +49,17 @@ class SQLiteInMemoryAnalysisRepository(AnalysisRepository):
         self._conn.commit()
         return cursor.rowcount > 0
 
+    def delete_many(self, ids: list[uuid.UUID]) -> int:
+        if not ids:
+            return 0
+        placeholders = ",".join("?" * len(ids))
+        cursor = self._conn.execute(
+            f"DELETE FROM transcript_analysis WHERE id IN ({placeholders})",
+            [str(i) for i in ids],
+        )
+        self._conn.commit()
+        return cursor.rowcount
+
     @staticmethod
     def _row_to_analysis(row: tuple) -> TranscriptAnalysis:
         return TranscriptAnalysis(

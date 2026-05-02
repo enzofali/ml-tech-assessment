@@ -5,6 +5,7 @@ from app.adapters.gemini import GeminiAdapter
 from app.adapters.groq import GroqAdapter
 from app.configurations import EnvConfigs
 from app.ports.llm import LLm
+from app.ports.repository import AnalysisRepository
 from app.repositories.in_memory import InMemoryAnalysisRepository
 from app.services.transcript import TranscriptService
 
@@ -15,7 +16,11 @@ def get_configs() -> EnvConfigs:
 
 
 @lru_cache
-def get_repository() -> InMemoryAnalysisRepository:
+def get_repository() -> AnalysisRepository:
+    configs = get_configs()
+    if configs.DATABASE_URL:
+        from app.repositories.postgres import PostgresAnalysisRepository
+        return PostgresAnalysisRepository(configs.DATABASE_URL)
     return InMemoryAnalysisRepository()
 
 
@@ -33,6 +38,6 @@ def get_llm() -> LLm:
 
 def get_service(
     llm: LLm = fastapi.Depends(get_llm),
-    repository: InMemoryAnalysisRepository = fastapi.Depends(get_repository),
+    repository: AnalysisRepository = fastapi.Depends(get_repository),
 ) -> TranscriptService:
     return TranscriptService(llm=llm, repository=repository)

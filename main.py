@@ -6,6 +6,7 @@ from app.api import routes
 app = fastapi.FastAPI(
     title="Transcript Analyzer API",
     version="1.0.0",
+    root_path="/api",
     description="""
 Analyzes plain-text coaching session transcripts using **OpenAI structured output**
 and returns a concise **summary** of key discussion points plus a list of **action items**.
