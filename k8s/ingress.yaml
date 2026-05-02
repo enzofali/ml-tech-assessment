@@ -1,0 +1,45 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: transcript-ingress
+  namespace: transcript-analyzer
+  annotations:
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    # Capture group $2 strips the path prefix before forwarding
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+spec:
+  ingressClassName: nginx
+  rules:
+    - http:
+        paths:
+          # API — /api/... → /...
+          - path: /api(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: api
+                port:
+                  number: 8000
+
+          # Grafana — /grafana/... → /...
+          # Requires GF_SERVER_ROOT_URL=http://localhost/grafana
+          #          GF_SERVER_SERVE_FROM_SUB_PATH=true
+          - path: /grafana(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: grafana
+                port:
+                  number: 3000
+
+          # Frontend — catch-all, path preserved
+          - path: /()(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: frontend
+                port:
+                  number: 3000
