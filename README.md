@@ -1,6 +1,50 @@
-# Transcript Analyzer API
+# Transcript Analyzer
 
-A FastAPI service that analyzes coaching session transcripts using structured LLM output and returns a concise **summary** plus **action items**. Supports OpenAI, Gemini, and Groq as interchangeable backends.
+A full-stack app that analyzes coaching session transcripts using structured LLM output and returns a concise **summary** plus **action items**. FastAPI backend · Next.js frontend · Prometheus + Grafana observability.
+
+---
+
+## Quick Start
+
+**Prerequisites:** [Docker Desktop](https://www.docker.com/products/docker-desktop/), [Node.js 18+](https://nodejs.org/), a free [Groq API key](https://console.groq.com/)
+
+```bash
+# 1. Clone
+git clone <repo-url> && cd ml-tech-assessment
+
+# 2. Create .env in the project root
+cat > .env << 'EOF'
+LLM_PROVIDER=groq
+LLM_API_KEY=your-groq-key-here
+LLM_MODEL=llama-3.3-70b-versatile
+EOF
+
+# 3. Start the backend + Prometheus + Grafana
+docker compose up --build -d
+
+# 4. Start the frontend
+cd frontend && npm install && npm run dev
+```
+
+| Service | URL | Credentials |
+|---|---|---|
+| Frontend | http://localhost:3000 | — |
+| API + Swagger | http://localhost:8000/docs | — |
+| Grafana dashboard | http://localhost:3002 | `admin` / `admin` |
+
+Open http://localhost:3000, drag in one of the sample transcripts from [`resources/`](resources/), and hit **Analyze**.
+
+### Viewing the Grafana dashboard
+
+1. Open http://localhost:3002
+2. Log in with `admin` / `admin`
+3. Click **Dashboards** in the left sidebar → select **Transcript API**
+
+The dashboard has 21 panels across 8 rows covering LLM performance, cost, latency, repository operations, and process health. Panels populate as soon as you run a few analyses — generate some traffic first by submitting a couple of transcripts on the frontend.
+
+> First load may take up to 15 seconds while Prometheus scrapes the initial metrics.
+
+---
 
 ## Architecture
 
@@ -84,6 +128,7 @@ Full interactive docs: **`/docs`** (Swagger UI) · **`/redoc`** (ReDoc)
 | `GET`    | `/transcripts`         | 200    | List all stored analyses (newest first)  |
 | `GET`    | `/transcripts/{id}`    | 200    | Retrieve a stored analysis by ID         |
 | `DELETE` | `/transcripts/{id}`    | 204    | Delete a stored analysis                 |
+| `DELETE` | `/transcripts`         | 200    | Bulk delete by list of IDs               |
 
 ### Transcript formats
 
@@ -308,7 +353,7 @@ The app follows the Next.js App Router model, mixing Server and Client Component
 frontend/
 ├── app/
 │   ├── page.tsx                  # Analyze page — Client Component (form, state, drag & drop)
-│   ├── history/page.tsx          # History page — Server Component (fetch + render list)
+│   ├── history/page.tsx          # History page — Client Component (multi-select, bulk delete)
 │   └── transcripts/[id]/page.tsx # Detail page  — Server Component (fetch + render analysis)
 ├── components/
 │   └── DeleteButton.tsx          # Client Component (confirm dialog, DELETE call, redirect)
@@ -316,7 +361,7 @@ frontend/
     └── api.ts                    # Typed API client (all 4 operations, driven by NEXT_PUBLIC_API_URL)
 ```
 
-Server Components fetch directly on the server — no loading spinners, no client-side state. Client Components are used only where the browser needs interactivity: the analyze form and the delete button.
+Server Components fetch directly on the server — no loading spinners, no client-side state. Client Components are used where the browser needs interactivity: the analyze form, the history page (multi-select + bulk delete), and the delete button.
 
 ### Pages
 
