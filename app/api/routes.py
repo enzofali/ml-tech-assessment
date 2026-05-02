@@ -195,6 +195,27 @@ def get_transcript(id: uuid.UUID, service: ServiceDep):
     return analysis
 
 
+class BatchDeleteRequest(pydantic.BaseModel):
+    ids: list[uuid.UUID] = pydantic.Field(
+        description="List of analysis IDs to delete.",
+        min_length=1,
+    )
+
+
+@router.delete(
+    "/transcripts",
+    status_code=200,
+    summary="Bulk delete analyses",
+    description="Deletes multiple stored analyses by ID. Returns the count of deleted items. IDs that do not exist are silently skipped.",
+    responses={
+        200: {"description": "Deleted successfully. Returns count of deleted items."},
+    },
+)
+def delete_transcripts_bulk(request: BatchDeleteRequest, service: ServiceDep):
+    deleted = service.delete_many(request.ids)
+    return {"deleted": deleted}
+
+
 @router.delete(
     "/transcripts/{id}",
     status_code=204,

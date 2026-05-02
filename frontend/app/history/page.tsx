@@ -1,15 +1,40 @@
-import Link from "next/link";
-import { listAnalyses } from "@/lib/api";
-import { ArrowRight, Clock, CheckCircle2, FileText } from "lucide-react";
+"use client";
 
-export default async function HistoryPage() {
-  let analyses;
-  try {
-    analyses = await listAnalyses();
-  } catch {
+import { useEffect, useState, useCallback } from "react";
+import Link from "next/link";
+import { listAnalyses, deleteAnalysesBulk, type Analysis } from "@/lib/api";
+import { ArrowRight, Clock, CheckCircle2, FileText, Trash2, Loader2 } from "lucide-react";
+
+export default function HistoryPage() {
+  const [analyses, setAnalyses] = useState<Analysis[] | null>(null);
+  const [error, setError] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [deleting, setDeleting] = useState(false);
+
+  const load = useCallback(async () => {
+    try {
+      const data = await listAnalyses();
+      setAnalyses(data);
+      setSelected(new Set());
+    } catch {
+      setError(true);
+    }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  if (error) {
     return (
       <div className="text-center py-20 text-slate-500 text-sm">
         Could not connect to the API. Make sure the backend is running.
+      </div>
+    );
+  }
+
+  if (analyses === null) {
+    return (
+      <div className="flex justify-center py-20">
+        <Loader2 className="w-5 h-5 animate-spin text-slate-400" />
       </div>
     );
   }
@@ -29,6 +54,35 @@ export default async function HistoryPage() {
     );
   }
 
+  const allSelected = selected.size === analyses.length;
+
+  function toggleAll() {
+    setSelected(allSelected ? new Set() : new Set(analyses!.map((a) => a.id)));
+  }
+
+  function toggleOne(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  async function handleBulkDelete() {
+    if (selected.size === 0) return;
+    if (!confirm(`Delete ${selected.size} ${selected.size === 1 ? "analysis" : "analyses"}? This cannot be undone.`)) return;
+    setDeleting(true);
+    try {
+      await deleteAnalysesBulk(Array.from(selected));
+      await load();
+    } catch {
+      alert("Failed to delete. Please try again.");
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -38,37 +92,82 @@ export default async function HistoryPage() {
         </span>
       </div>
 
+      {/* Bulk action bar */}
+      <div className="flex items-center gap-3">
+        <label className="flex items-center gap-2 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={allSelected}
+            onChange={toggleAll}
+            className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+          />
+          <span className="text-sm text-slate-600">
+            {selected.size > 0 ? `${selected.size} selected` : "Select all"}
+          </span>
+        </label>
+
+        {selected.size > 0 && (
+          <button
+            onClick={handleBulkDelete}
+            disabled={deleting}
+            className="ml-auto flex items-center gap-1.5 text-sm text-red-500 hover:text-red-700 disabled:opacity-50 transition-colors"
+          >
+            {deleting ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Trash2 className="w-4 h-4" />
+            )}
+            Delete {selected.size} {selected.size === 1 ? "analysis" : "analyses"}
+          </button>
+        )}
+      </div>
+
       <div className="space-y-3">
         {analyses.map((analysis) => (
-          <Link
+          <div
             key={analysis.id}
-            href={`/transcripts/${analysis.id}`}
-            className="flex items-start justify-between gap-4 bg-white rounded-2xl border border-slate-200 shadow-sm p-5 hover:border-indigo-300 hover:shadow-md transition-all group"
+            className={`flex items-center gap-3 bg-white rounded-2xl border shadow-sm p-5 transition-all ${
+              selected.has(analysis.id)
+                ? "border-indigo-300 bg-indigo-50/30"
+                : "border-slate-200 hover:border-indigo-300 hover:shadow-md"
+            }`}
           >
-            <div className="space-y-2 flex-1 min-w-0">
-              <p className="text-sm text-slate-800 line-clamp-2 leading-relaxed">
-                {analysis.summary}
-              </p>
-              <div className="flex items-center gap-4 text-xs text-slate-600">
-                <span className="flex items-center gap-1">
-                  <Clock className="w-3 h-3" />
-                  {new Date(analysis.created_at).toLocaleDateString("en-US", {
-                    month: "short",
-                    day: "numeric",
-                    year: "numeric",
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
-                </span>
-                <span className="flex items-center gap-1">
-                  <CheckCircle2 className="w-3 h-3" />
-                  {analysis.action_items.length}{" "}
-                  {analysis.action_items.length === 1 ? "action item" : "action items"}
-                </span>
+            <input
+              type="checkbox"
+              checked={selected.has(analysis.id)}
+              onChange={() => toggleOne(analysis.id)}
+              className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer shrink-0"
+            />
+
+            <Link
+              href={`/transcripts/${analysis.id}`}
+              className="flex items-start justify-between gap-4 flex-1 min-w-0 group"
+            >
+              <div className="space-y-2 flex-1 min-w-0">
+                <p className="text-sm text-slate-800 line-clamp-2 leading-relaxed">
+                  {analysis.summary}
+                </p>
+                <div className="flex items-center gap-4 text-xs text-slate-600">
+                  <span className="flex items-center gap-1">
+                    <Clock className="w-3 h-3" />
+                    {new Date(analysis.created_at).toLocaleDateString("en-US", {
+                      month: "short",
+                      day: "numeric",
+                      year: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <CheckCircle2 className="w-3 h-3" />
+                    {analysis.action_items.length}{" "}
+                    {analysis.action_items.length === 1 ? "action item" : "action items"}
+                  </span>
+                </div>
               </div>
-            </div>
-            <ArrowRight className="w-4 h-4 text-slate-300 group-hover:text-indigo-500 transition-colors shrink-0 mt-1" />
-          </Link>
+              <ArrowRight className="w-4 h-4 text-slate-300 group-hover:text-indigo-500 transition-colors shrink-0 mt-1" />
+            </Link>
+          </div>
         ))}
       </div>
     </div>

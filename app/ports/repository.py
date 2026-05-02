@@ -19,3 +19,8 @@ class AnalysisRepository(ABC):
     @abstractmethod
     def delete(self, id: uuid.UUID) -> bool:
         pass
+
+    @abstractmethod
+    def delete_many(self, ids: list[uuid.UUID]) -> int:
+        """Delete multiple analyses. Returns the count of successfully deleted items."""
+        pass

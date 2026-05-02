@@ -49,3 +49,14 @@ export async function deleteAnalysis(id: string): Promise<void> {
   const res = await fetch(`${API_URL}/transcripts/${id}`, { method: "DELETE" });
   if (!res.ok && res.status !== 404) throw new Error("Failed to delete");
 }
+
+export async function deleteAnalysesBulk(ids: string[]): Promise<number> {
+  const res = await fetch(`${API_URL}/transcripts`, {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ids }),
+  });
+  if (!res.ok) throw new Error("Failed to bulk delete");
+  const data = await res.json();
+  return data.deleted as number;
+}

@@ -79,3 +79,6 @@ class TranscriptService:
 
     def delete(self, id: uuid.UUID) -> bool:
         return self._repository.delete(id)
+
+    def delete_many(self, ids: list[uuid.UUID]) -> int:
+        return self._repository.delete_many(ids)

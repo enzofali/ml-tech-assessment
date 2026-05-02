@@ -46,3 +46,22 @@ class InMemoryAnalysisRepository(AnalysisRepository):
         except Exception:
             repository_operations_total.labels(operation="delete", result="error").inc()
             raise
+
+    def delete_many(self, ids: list[uuid.UUID]) -> int:
+        # No concurrency needed: dict ops are nanosecond CPU work with no I/O to await.
+        # On a real DB, replace with a single DELETE WHERE id = ANY($1) — one round-trip beats N concurrent ones.
+        try:
+            ids_set = set(ids)
+            to_delete = ids_set & self._store.keys()
+            missed = len(ids_set) - len(to_delete)
+            for id in to_delete:
+                del self._store[id]
+            if to_delete:
+                repository_operations_total.labels(operation="delete", result="success").inc(len(to_delete))
+                repository_size.set(len(self._store))
+            if missed:
+                repository_operations_total.labels(operation="delete", result="miss").inc(missed)
+            return len(to_delete)
+        except Exception:
+            repository_operations_total.labels(operation="delete", result="error").inc()
+            raise
