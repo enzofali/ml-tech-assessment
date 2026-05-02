@@ -1,18 +1,50 @@
 services:
+  postgres:
+    image: postgres:16-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: transcript
+      POSTGRES_PASSWORD: transcript
+      POSTGRES_DB: transcript
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U transcript"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   api:
     build: .
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://transcript:transcript@postgres:5432/transcript
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost/api
+    depends_on:
+      - api
+
+  nginx:
+    image: nginx:alpine
     ports:
-      - "8000:8000"
-    env_file:
-      - .env
+      - "80:80"
     volumes:
-      - .:/app
-    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - api
+      - frontend
+      - grafana
 
   prometheus:
     image: prom/prometheus:latest
-    ports:
-      - "9090:9090"
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus_data:/prometheus
@@ -24,11 +56,11 @@ services:
 
   grafana:
     image: grafana/grafana:latest
-    ports:
-      - "3002:3000"
     environment:
-      - GF_SECURITY_ADMIN_PASSWORD=admin
-      - GF_USERS_ALLOW_SIGN_UP=false
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_SERVER_ROOT_URL: http://localhost/grafana
+      GF_SERVER_SERVE_FROM_SUB_PATH: "true"
     volumes:
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
       - ./grafana/dashboards:/etc/grafana/dashboards:ro
@@ -37,5 +69,6 @@ services:
       - prometheus
 
 volumes:
+  postgres_data:
   prometheus_data:
   grafana_data:

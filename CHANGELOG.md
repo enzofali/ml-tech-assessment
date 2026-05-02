@@ -5,6 +5,42 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.1.0] — 2026-05-02
+
+### Added
+
+**Postgres repository adapter**
+- `PostgresAnalysisRepository` — full `AnalysisRepository` implementation backed by a `psycopg2` connection pool (min 1, max 10)
+- `DATABASE_URL` env var selects the adapter at runtime; omitting it falls back to in-memory with no code changes
+- Schema: `transcript_analysis(id UUID PK, summary TEXT, action_items JSONB, created_at TIMESTAMPTZ)` — auto-created on first boot
+- `DELETE WHERE id = ANY(%s::uuid[])` for batch deletes — single round-trip regardless of list size
+
+**Service decoupling**
+- Frontend now runs as a dedicated container (multi-stage Next.js standalone Dockerfile)
+- nginx reverse proxy on port 80 routes all traffic: `/api/` → FastAPI, `/grafana/` → Grafana, `/` → Next.js
+
+**docker-compose**
+- Added `postgres` service (Postgres 16 Alpine) with healthcheck; `api` waits for healthy signal before starting
+- Added `frontend` service built with `NEXT_PUBLIC_API_URL=http://localhost/api` baked in
+- Added `nginx` service mounting `nginx/nginx.conf`; only nginx exposes a host port (80)
+- Grafana configured with `GF_SERVER_SERVE_FROM_SUB_PATH=true` for correct sub-path asset resolution
+- Named volume `postgres_data` persists analyses across restarts; survives `docker compose down` (requires `-v` to wipe)
+
+**Tests**
+- Added 4 `delete_many` test cases to the shared repository fixture: partial delete, missing IDs, empty list, all missing
+- Fixed `SQLiteInMemoryAnalysisRepository` — missing `delete_many` made it uninstantiable as an ABC; implemented using `DELETE WHERE id IN (?,…)` with dynamic placeholders
+- Added 13 Postgres integration tests in `tests/adapters/test_postgres_repository.py`; auto-skip when DB is unreachable; excluded from default `pytest` run
+
+### Changed
+
+- `app/api/dependencies.py` — `get_repository()` now switches on `DATABASE_URL`; return type widened to `AnalysisRepository` port
+- `app/configurations.py` — added optional `DATABASE_URL: str | None = None`
+- `frontend/next.config.ts` — added `output: "standalone"` required for the standalone Docker build
+- `docker-compose.yml` — postgres port `5432` exposed to host to allow integration tests to run against the live container
+- README — updated Quick Start (single port, no Node prerequisite), URL table, env vars, Cloudflare tunnel (one tunnel not three), removed stale "Next Steps" migration items that are now shipped
+
+---
+
 ## [0.0.1] — 2026-05-02
 
 ### Added
