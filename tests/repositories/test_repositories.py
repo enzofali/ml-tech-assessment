@@ -82,3 +82,32 @@ def test_delete_removes_only_target(repository: AnalysisRepository) -> None:
     repository.delete(first.id)
     assert repository.get_by_id(first.id) is None
     assert repository.get_by_id(second.id) == second
+
+
+def test_delete_many_returns_count(repository: AnalysisRepository) -> None:
+    first = make_analysis()
+    second = make_analysis()
+    third = make_analysis()
+    repository.save(first)
+    repository.save(second)
+    repository.save(third)
+    deleted = repository.delete_many([first.id, third.id])
+    assert deleted == 2
+    assert repository.get_by_id(first.id) is None
+    assert repository.get_by_id(second.id) is not None
+    assert repository.get_by_id(third.id) is None
+
+
+def test_delete_many_skips_missing_ids(repository: AnalysisRepository) -> None:
+    analysis = make_analysis()
+    repository.save(analysis)
+    deleted = repository.delete_many([analysis.id, uuid.uuid4()])
+    assert deleted == 1
+
+
+def test_delete_many_empty_list_returns_zero(repository: AnalysisRepository) -> None:
+    assert repository.delete_many([]) == 0
+
+
+def test_delete_many_all_missing_returns_zero(repository: AnalysisRepository) -> None:
+    assert repository.delete_many([uuid.uuid4(), uuid.uuid4()]) == 0
