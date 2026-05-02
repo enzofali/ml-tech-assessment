@@ -1,0 +1,37 @@
+[00:00:00] Rachel | Coach: Hey Tom, this is your third week — how are you settling in?
+
+[00:00:06] Tom: It's going okay. I feel like I'm starting to get the codebase but I'm still not sure who to go to for what.
+
+[00:00:14] Rachel | Coach: That's really normal at this stage. Who have you connected with so far?
+
+[00:00:20] Tom: Mostly the people on my immediate squad — Lena, Carlos, and Binh. I've had one call with the platform team but I don't really know anyone else.
+
+[00:00:30] Rachel | Coach: Is there anyone you've noticed doing work that overlaps with yours or that you're curious about?
+
+[00:00:38] Tom: Yeah, definitely. There's a guy on the data team — I think his name is Sam — who built the pipeline I'm extending. I've been reading his commits but never reached out.
+
+[00:00:50] Rachel | Coach: What's stopped you?
+
+[00:00:54] Tom: I don't want to bother him. And I'm not sure if it's normal to just cold-message people here.
+
+[00:01:02] Rachel | Coach: It's not just normal here, it's expected. People generally love being asked about their work. What would you want to ask Sam if you did reach out?
+
+[00:01:13] Tom: Honestly, why he structured the pipeline the way he did. There are some design choices I don't understand and they're going to affect what I'm building.
+
+[00:01:23] Rachel | Coach: That's a great reason to reach out — it's not bothering him, it's helping you do better work that his pipeline feeds into. Can you send him a message this week?
+
+[00:01:35] Tom: Yeah, I can do that. I'll send something today actually.
+
+[00:01:40] Rachel | Coach: Good. What else is on your mind about the first month?
+
+[00:01:46] Tom: I want to make sure I'm contributing something real before my 30-day check-in with my manager. I don't want to just be "the new person" who's still learning.
+
+[00:01:58] Rachel | Coach: What would "contributing something real" look like to you?
+
+[00:02:04] Tom: Shipping at least one ticket on my own, end to end. I've been pairing a lot but haven't owned anything solo yet.
+
+[00:02:14] Rachel | Coach: Talk to Lena about pulling a solo ticket in the next sprint. That's a totally reasonable ask and she'll appreciate you naming the goal.
+
+[00:02:24] Tom: Okay. I'll bring it up in our next 1:1 tomorrow.
+
+[00:02:29] Rachel | Coach: Two clear actions — message Sam today, solo ticket conversation with Lena tomorrow. That's a strong week.

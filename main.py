@@ -1,4 +1,5 @@
 import fastapi
+from fastapi.middleware.cors import CORSMiddleware
 from prometheus_fastapi_instrumentator import Instrumentator
 from app.api import routes
 
@@ -24,6 +25,13 @@ and returns a concise **summary** of key discussion points plus a list of **acti
             "description": "Analyze coaching transcripts and retrieve stored results.",
         }
     ],
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 app.include_router(routes.router)
