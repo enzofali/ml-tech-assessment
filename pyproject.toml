@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "ml-tech-assessment"
-version = "0.1.0"
+version = "0.0.1"
 description = ""
 authors = ["jhonvalderrama <jhonvalderrama@aceup.com>"]
 readme = "README.md"
