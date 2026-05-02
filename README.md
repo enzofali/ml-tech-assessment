@@ -35,9 +35,19 @@ docker compose up --build
 | API        | http://localhost:8000      |
 | Swagger UI | http://localhost:8000/docs |
 | Prometheus | http://localhost:9090      |
-| Grafana    | http://localhost:3000      |
+| Grafana    | http://localhost:3002      |
 
 Grafana default login: `admin` / `admin`.
+
+**Frontend** (run separately — see [Frontend](#frontend) section below):
+
+```bash
+cd frontend && npm install && npm run dev
+```
+
+| Service  | URL                   |
+|----------|-----------------------|
+| Frontend | http://localhost:3000 |
 
 ### Environment variables
 
@@ -181,7 +191,7 @@ Provided automatically by `prometheus-fastapi-instrumentator` and the default Pr
 
 ### Grafana dashboard
 
-When running via Docker Compose, Grafana auto-loads a pre-built dashboard called **Transcript API** with 21 panels covering every layer of the system. No manual setup — just open http://localhost:3000 (login `admin` / `admin`) → **Dashboards** → **Transcript API**.
+When running via Docker Compose, Grafana auto-loads a pre-built dashboard called **Transcript API** with 21 panels covering every layer of the system. No manual setup — just open http://localhost:3002 (login `admin` / `admin`) → **Dashboards** → **Transcript API**.
 
 #### Dashboard layout
 
@@ -245,7 +255,8 @@ docker compose up -d
 
 ```bash
 cloudflared tunnel --url http://localhost:8000   # API + Swagger
-cloudflared tunnel --url http://localhost:3000   # Grafana dashboard
+cloudflared tunnel --url http://localhost:3000   # Frontend
+cloudflared tunnel --url http://localhost:3002   # Grafana dashboard
 ```
 
 Each command prints a public `https://*.trycloudflare.com` URL. Share both with the reviewer:
@@ -253,6 +264,7 @@ Each command prints a public `https://*.trycloudflare.com` URL. Share both with 
 | Service | URL |
 |---------|-----|
 | API + Swagger | `https://xxxx.trycloudflare.com/docs` |
+| Frontend | `https://zzzz.trycloudflare.com` |
 | Grafana | `https://yyyy.trycloudflare.com` (login: `admin` / `admin`) |
 
 > The tunnel stays alive as long as the terminal is open. Your machine is the server.
@@ -276,6 +288,63 @@ poetry run pytest tests/services/ tests/repositories/
 ```
 
 > `tests/adapters/` requires a live API key and is excluded from the default run.
+
+---
+
+## Frontend
+
+The frontend was **vibe-coded** — rapidly scaffolded to make the product interactive and easy to demo, rather than built as production-grade UI. The goal was a clean interface that lets a reviewer explore every API capability without touching `curl`.
+
+### Stack
+
+- **Next.js 15** (App Router) with **TypeScript** and **Tailwind CSS**
+- **lucide-react** for icons — no other UI library
+
+### Architecture
+
+The app follows the Next.js App Router model, mixing Server and Client Components based on responsibility:
+
+```
+frontend/
+├── app/
+│   ├── page.tsx                  # Analyze page — Client Component (form, state, drag & drop)
+│   ├── history/page.tsx          # History page — Server Component (fetch + render list)
+│   └── transcripts/[id]/page.tsx # Detail page  — Server Component (fetch + render analysis)
+├── components/
+│   └── DeleteButton.tsx          # Client Component (confirm dialog, DELETE call, redirect)
+└── lib/
+    └── api.ts                    # Typed API client (all 4 operations, driven by NEXT_PUBLIC_API_URL)
+```
+
+Server Components fetch directly on the server — no loading spinners, no client-side state. Client Components are used only where the browser needs interactivity: the analyze form and the delete button.
+
+### Pages
+
+| Page | Route | Description |
+|------|-------|-------------|
+| Analyze | `/` | Paste or drag-and-drop a transcript file (`.txt`, `.vtt`, `.srt`), submit for analysis, see results inline |
+| History | `/history` | List of all stored analyses with summary preview, date, and action item count |
+| Detail | `/transcripts/:id` | Full analysis view with delete button |
+
+### Configuration
+
+The only config needed is the API URL:
+
+```bash
+# frontend/.env.local
+NEXT_PUBLIC_API_URL=http://localhost:8000
+```
+
+### Sample files
+
+The `resources/` directory contains four mock transcripts in every supported format, ready to drag onto the analyze page:
+
+| File | Format | Scenario |
+|------|--------|----------|
+| `career_coaching_plain.txt` | Plain `Speaker: text` | Promotion conversation |
+| `product_team_standup.srt` | SRT | Sprint retro |
+| `leadership_coaching.vtt` | WebVTT | Manager overwhelm + delegation |
+| `onboarding_coaching.txt` | Timestamped `[HH:MM:SS]` | New hire first month |
 
 ---
 
