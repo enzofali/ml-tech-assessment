@@ -1,12 +1,12 @@
 # Transcript Analyzer
 
-A full-stack app that analyzes coaching session transcripts using structured LLM output and returns a concise **summary** plus **action items**. FastAPI backend · Next.js frontend · Prometheus + Grafana observability.
+A full-stack app that analyzes coaching session transcripts using structured LLM output and returns a concise **summary** plus **action items**. FastAPI backend · Next.js frontend · Postgres · Prometheus + Grafana observability.
 
 ---
 
 ## Quick Start
 
-**Prerequisites:** [Docker Desktop](https://www.docker.com/products/docker-desktop/), [Node.js 18+](https://nodejs.org/), a free [Groq API key](https://console.groq.com/)
+**Prerequisites:** [Docker Desktop](https://www.docker.com/products/docker-desktop/), a free [Groq API key](https://console.groq.com/)
 
 ```bash
 # 1. Clone
@@ -19,24 +19,21 @@ LLM_API_KEY=your-groq-key-here
 LLM_MODEL=llama-3.3-70b-versatile
 EOF
 
-# 3. Start the backend + Prometheus + Grafana
+# 3. Start everything
 docker compose up --build -d
-
-# 4. Start the frontend
-cd frontend && npm install && npm run dev
 ```
 
 | Service | URL | Credentials |
 |---|---|---|
-| Frontend | http://localhost:3000 | — |
-| API + Swagger | http://localhost:8000/docs | — |
-| Grafana dashboard | http://localhost:3002 | `admin` / `admin` |
+| Frontend | http://localhost | — |
+| API + Swagger | http://localhost/api/docs | — |
+| Grafana dashboard | http://localhost/grafana | `admin` / `admin` |
 
-Open http://localhost:3000, drag in one of the sample transcripts from [`resources/`](resources/), and hit **Analyze**.
+Open http://localhost, drag in one of the sample transcripts from [`resources/`](resources/), and hit **Analyze**.
 
 ### Viewing the Grafana dashboard
 
-1. Open http://localhost:3002
+1. Open http://localhost/grafana
 2. Log in with `admin` / `admin`
 3. Click **Dashboards** in the left sidebar → select **Transcript API**
 
@@ -54,13 +51,52 @@ Hexagonal (ports & adapters) with clear layer separation:
 app/
 ├── ports/          # Interfaces — LLm, AnalysisRepository
 ├── adapters/       # OpenAI · Gemini · Groq adapters implementing the LLm port
-├── repositories/   # In-memory repository implementing AnalysisRepository
+├── repositories/   # InMemory · SQLite · Postgres implementations of AnalysisRepository
 ├── models/         # Domain entity (TranscriptAnalysis) + LLM DTO
 ├── services/       # Business logic (TranscriptService)
 └── api/            # FastAPI routes + dependency injection wiring
 ```
 
-The service layer depends only on port interfaces. Adapters are injected at runtime via FastAPI's DI system, making every layer independently unit-testable.
+The service layer depends only on port interfaces. Adapters are injected at runtime via FastAPI's DI system, making every layer independently unit-testable. Set `DATABASE_URL` to switch from in-memory to Postgres without touching any other code.
+
+### Service diagram
+
+```
+                        Browser
+                           │
+                        :80│
+                           ▼
+               ┌───────────────────────┐
+               │         nginx         │
+               │  /        → frontend  │
+               │  /api/    → api       │
+               │  /grafana/→ grafana   │
+               └──┬────────┬───────────┘
+                  │        │
+                  ▼        ▼
+          ┌──────────┐  ┌──────────────────────────┐
+          │ frontend │  │           api             │
+          │ Next.js  │  │  FastAPI · structured LLM │
+          │standalone│  │  GET /metrics (Prometheus)│
+          └──────────┘  └───┬──────────────┬────────┘
+                             │              │
+                             ▼              ▼
+                      ┌──────────┐   ┌─────────────┐
+                      │ postgres │   │   LLM API   │
+                      │  :5432   │   │ Groq/OpenAI │
+                      │  (named  │   │   /Gemini   │
+                      │  volume) │   └─────────────┘
+                      └──────────┘
+                                        ▲
+               ┌────────────────────────┘
+               │   scrapes /metrics every 15s
+               │
+          ┌────┴─────┐        ┌─────────────────┐
+          │prometheus│──────▶ │     grafana      │
+          │  :9090   │        │  21-panel dash   │
+          └──────────┘        │  auto-provisioned│
+                              └─────────────────┘
+```
 
 ---
 
@@ -68,55 +104,50 @@ The service layer depends only on port interfaces. Adapters are injected at runt
 
 ### Docker Compose
 
-Runs the API, Prometheus, and Grafana in one command. No Python install required.
 
 ```bash
 docker compose up --build
 ```
 
-| Service    | URL                        |
-|------------|----------------------------|
-| API        | http://localhost:8000      |
-| Swagger UI | http://localhost:8000/docs |
-| Prometheus | http://localhost:9090      |
-| Grafana    | http://localhost:3002      |
+| Service    | URL                          |
+|------------|------------------------------|
+| Frontend   | http://localhost             |
+| API        | http://localhost/api         |
+| Swagger UI | http://localhost/api/docs    |
+| Grafana    | http://localhost/grafana     |
+| Prometheus | http://localhost:9090        |
 
 Grafana default login: `admin` / `admin`.
-
-**Frontend** (run separately — see [Frontend](#frontend) section below):
-
-```bash
-cd frontend && npm install && npm run dev
-```
-
-| Service  | URL                   |
-|----------|-----------------------|
-| Frontend | http://localhost:3000 |
 
 ### Environment variables
 
 Create a `.env` file in the project root:
 
 ```env
-# Provider: openai | gemini | groq  (default: groq)
-LLM_PROVIDER=groq
+# Required
+LLM_PROVIDER=groq                     # openai | gemini | groq (default: groq)
 LLM_API_KEY=your-api-key-here
-LLM_MODEL=llama-3.3-70b-versatile   # optional — this is the groq default
+LLM_MODEL=llama-3.3-70b-versatile     # optional — this is the groq default
+
+# Optional — omit to use the in-memory repository
+DATABASE_URL=postgresql://user:pass@host:5432/db
 ```
+
+`DATABASE_URL` is set automatically by docker-compose to the bundled Postgres instance. Only set it manually when pointing at an external database.
 
 **Model defaults per provider:**
 
 | Provider | Default model              | Free tier |
 |----------|---------------------------|-----------|
 | `groq`   | `llama-3.3-70b-versatile` | Yes       |
-| `gemini` | `gemini-2.5-flash`        | No       |
+| `gemini` | `gemini-2.5-flash`        | No        |
 | `openai` | _(must set explicitly)_   | No        |
 
 ---
 
 ## API Reference
 
-Full interactive docs: **`/docs`** (Swagger UI) · **`/redoc`** (ReDoc)
+Full interactive docs: **`/api/docs`** (Swagger UI) · **`/api/redoc`** (ReDoc)
 
 ### Endpoints
 
@@ -148,7 +179,7 @@ No `format` field needed — the API auto-detects from content:
 **Single transcript**
 
 ```bash
-curl -X POST http://localhost:8000/transcripts \
+curl -X POST http://localhost/api/transcripts \
   -H "Content-Type: application/json" \
   -d '{
     "transcript": "Alice | Coach: How have you been since our last session?\n\nBob: Much better. I finished the report.\n\nAlice | Coach: What helped?\n\nBob: Breaking it into daily tasks."
@@ -172,7 +203,7 @@ Response `201`:
 **Batch (concurrent, up to 50 transcripts)**
 
 ```bash
-curl -X POST http://localhost:8000/transcripts/batch \
+curl -X POST http://localhost/api/transcripts/batch \
   -H "Content-Type: application/json" \
   -d '{
     "transcripts": [
@@ -185,13 +216,13 @@ curl -X POST http://localhost:8000/transcripts/batch \
 **Retrieve by ID**
 
 ```bash
-curl http://localhost:8000/transcripts/3fa85f64-5717-4562-b3fc-2c963f66afa6
+curl http://localhost/api/transcripts/3fa85f64-5717-4562-b3fc-2c963f66afa6
 ```
 
 **Delete by ID**
 
 ```bash
-curl -X DELETE http://localhost:8000/transcripts/3fa85f64-5717-4562-b3fc-2c963f66afa6
+curl -X DELETE http://localhost/api/transcripts/3fa85f64-5717-4562-b3fc-2c963f66afa6
 ```
 
 ---
@@ -217,7 +248,7 @@ The API exposes a `/metrics` endpoint in Prometheus format. Three layers of inst
 | Metric                        | Type    | Labels               | Description                              |
 |-------------------------------|---------|----------------------|------------------------------------------|
 | `repository_operations_total` | Counter | `operation`, `result`| Operations: `save/get/list/delete` × `success/miss/error` |
-| `repository_size`             | Gauge   | —                    | Number of analyses currently in memory   |
+| `repository_size`             | Gauge   | —                    | Number of analyses currently stored      |
 | `batch_size`                  | Histogram | —                  | Transcripts per batch request (buckets: 1–50) |
 
 ### HTTP + process metrics
@@ -236,7 +267,7 @@ Provided automatically by `prometheus-fastapi-instrumentator` and the default Pr
 
 ### Grafana dashboard
 
-When running via Docker Compose, Grafana auto-loads a pre-built dashboard called **Transcript API** with 21 panels covering every layer of the system. No manual setup — just open http://localhost:3002 (login `admin` / `admin`) → **Dashboards** → **Transcript API**.
+When running via Docker Compose, Grafana auto-loads a pre-built dashboard called **Transcript API** with 21 panels covering every layer of the system. No manual setup — just open http://localhost/grafana (login `admin` / `admin`) → **Dashboards** → **Transcript API**.
 
 #### Dashboard layout
 
@@ -279,6 +310,8 @@ The dashboard JSON lives at [grafana/dashboards/transcript-api.json](grafana/das
 
 ### Cloudflare Tunnel
 
+Expose the full stack publicly from your local machine — no domain or cloud account required.
+
 **1. Install cloudflared**
 
 ```bash
@@ -296,21 +329,19 @@ curl -L https://github.com/cloudflare/cloudflared/releases/latest/download/cloud
 docker compose up -d
 ```
 
-**3. Open a tunnel for each service** (separate terminals)
+**3. Open a single tunnel** — nginx exposes everything on port 80
 
 ```bash
-cloudflared tunnel --url http://localhost:8000   # API + Swagger
-cloudflared tunnel --url http://localhost:3000   # Frontend
-cloudflared tunnel --url http://localhost:3002   # Grafana dashboard
+cloudflared tunnel --url http://localhost:80
 ```
 
-Each command prints a public `https://*.trycloudflare.com` URL. Share both with the reviewer:
+Share the printed URL with the reviewer:
 
-| Service | URL |
-|---------|-----|
-| API + Swagger | `https://xxxx.trycloudflare.com/docs` |
-| Frontend | `https://zzzz.trycloudflare.com` |
-| Grafana | `https://yyyy.trycloudflare.com` (login: `admin` / `admin`) |
+| Path | What they see |
+|---|---|
+| `https://xxxx.trycloudflare.com` | Frontend |
+| `https://xxxx.trycloudflare.com/api/docs` | Swagger UI |
+| `https://xxxx.trycloudflare.com/grafana` | Grafana (login: `admin` / `admin`) |
 
 > The tunnel stays alive as long as the terminal is open. Your machine is the server.
 
@@ -319,7 +350,7 @@ Each command prints a public `https://*.trycloudflare.com` URL. Share both with 
 ## Running Tests
 
 ```bash
-# All tests (unit + E2E)
+# Unit + E2E
 poetry run pytest
 
 # Verbose output
@@ -328,11 +359,14 @@ poetry run pytest -v
 # Only E2E (full HTTP stack, mocked LLM)
 poetry run pytest tests/api/
 
-# Only unit tests
-poetry run pytest tests/services/ tests/repositories/
+# Only repository unit tests
+poetry run pytest tests/repositories/
+
+# Postgres integration tests (requires running Postgres)
+pytest tests/adapters/test_postgres_repository.py
 ```
 
-> `tests/adapters/` requires a live API key and is excluded from the default run.
+> `tests/adapters/` requires a live DB or API key and is excluded from the default run. Postgres tests auto-skip when the DB is unreachable.
 
 ---
 
@@ -371,15 +405,6 @@ Server Components fetch directly on the server — no loading spinners, no clien
 | History | `/history` | List of all stored analyses with summary preview, date, and action item count |
 | Detail | `/transcripts/:id` | Full analysis view with delete button |
 
-### Configuration
-
-The only config needed is the API URL:
-
-```bash
-# frontend/.env.local
-NEXT_PUBLIC_API_URL=http://localhost:8000
-```
-
 ### Sample files
 
 The `resources/` directory contains four mock transcripts in every supported format, ready to drag onto the analyze page:
@@ -390,45 +415,3 @@ The `resources/` directory contains four mock transcripts in every supported for
 | `product_team_standup.srt` | SRT | Sprint retro |
 | `leadership_coaching.vtt` | WebVTT | Manager overwhelm + delegation |
 | `onboarding_coaching.txt` | Timestamped `[HH:MM:SS]` | New hire first month |
-
----
-
-## Next Steps
-
-The current deployment is a **monolith** — API, Prometheus, and Grafana run together via Docker Compose on a single host. This is intentional as a starting point. The natural evolution is to decouple into a production-grade architecture:
-
-### Target architecture
-
-```
-Internet
-    │
-    ▼
-Nginx Ingress (LoadBalancer)
-    ├── /api          → API Deployment (N replicas)
-    ├── /             → Frontend Deployment
-    └── grafana.x.com → Grafana (via kube-prometheus-stack)
-
-K8s Cluster
-    ├── api-deployment         FastAPI × N replicas
-    ├── frontend-deployment    React / Next.js
-    ├── postgres StatefulSet   PersistentVolumeClaim (decoupled store)
-    ├── prometheus             Scrapes API + K8s node metrics
-    └── grafana                Pre-loaded dashboard, viewer access for reviewers
-```
-
-### Migration path
-
-1. **Persistent store** — swap `InMemoryAnalysisRepository` for a `PostgresAnalysisRepository` (the port interface stays unchanged). Add a Postgres `StatefulSet` + `PersistentVolumeClaim` to the cluster.
-
-2. **Frontend** — build a dedicated UI (separate deployment), served independently behind the same Ingress.
-
-3. **Kubernetes manifests** — write `Deployment`, `Service`, `Ingress`, and `PVC` manifests (or use Helm). Recommended cluster: GKE Autopilot (free tier) or DigitalOcean DOKS (~$12/mo).
-
-4. **Monitoring** — install [`kube-prometheus-stack`](https://github.com/prometheus-community/helm-charts/tree/main/charts/kube-prometheus-stack) via Helm. This auto-wires Prometheus + Grafana + AlertManager and adds K8s node/pod metrics on top of the existing app metrics. Expose Grafana via Ingress at `grafana.your-domain.com`.
-   ```bash
-   helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
-   helm install monitoring prometheus-community/kube-prometheus-stack \
-     --namespace monitoring --create-namespace
-   ```
-   Alternatively, use **Grafana Cloud** (free tier, 10k series) with `remote_write` from in-cluster Prometheus — user gets a public URL with a read-only Viewer account.
-
