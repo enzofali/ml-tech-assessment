@@ -46,26 +46,23 @@ services:
       - grafana
 
   prometheus:
-    image: prom/prometheus:latest
+    build: ./prometheus
+    environment:
+      API_TARGET: ${API_TARGET:-api:8000}  # Railway: <api-service>.railway.internal:8000
     volumes:
-      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus_data:/prometheus
-    command:
-      - "--config.file=/etc/prometheus/prometheus.yml"
-      - "--storage.tsdb.retention.time=15d"
     depends_on:
       - api
 
   grafana:
-    image: grafana/grafana:latest
+    build: ./grafana
     environment:
-      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GF_ADMIN_PASSWORD:-admin}
       GF_USERS_ALLOW_SIGN_UP: "false"
-      GF_SERVER_ROOT_URL: http://localhost/grafana
-      GF_SERVER_SERVE_FROM_SUB_PATH: "true"
+      GF_SERVER_ROOT_URL: ${GF_SERVER_ROOT_URL:-http://localhost/grafana}
+      GF_SERVER_SERVE_FROM_SUB_PATH: ${GF_SERVE_FROM_SUB_PATH:-"true"}
+      PROMETHEUS_URL: ${PROMETHEUS_URL:-http://prometheus:9090}  # consumed by datasource provisioning
     volumes:
-      - ./grafana/provisioning:/etc/grafana/provisioning:ro
-      - ./grafana/dashboards:/etc/grafana/dashboards:ro
       - grafana_data:/var/lib/grafana
     depends_on:
       - prometheus
