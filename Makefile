@@ -26,7 +26,7 @@ build-api:
 
 build-frontend:
 	docker build \
-		--build-arg NEXT_PUBLIC_API_URL=http://localhost/api \
+		--build-arg NEXT_PUBLIC_API_URL=http://localhost:8080/api \
 		-t $(IMAGE_FRONTEND) ./frontend
 
 # ── Kubernetes — first-time setup ─────────────────────────────────────────────
@@ -47,10 +47,11 @@ k8s-install-metrics-server:
 
 # ── Kubernetes — deploy ────────────────────────────────────────────────────────
 
-.PHONY: k8s-up k8s-config k8s-secrets k8s-down k8s-status
+.PHONY: k8s-up k8s-config k8s-secrets k8s-down k8s-status k8s-forward
 
-k8s-up: k8s-secrets k8s-config
+k8s-up:
 	kubectl apply -f k8s/namespace.yaml
+	$(MAKE) k8s-secrets k8s-config
 	kubectl apply -f k8s/postgres/
 	kubectl apply -f k8s/prometheus/
 	kubectl apply -f k8s/grafana/
@@ -80,6 +81,12 @@ k8s-down:
 
 k8s-status:
 	kubectl get pods,svc,ingress,pvc,hpa -n $(NAMESPACE)
+
+# Forward host:8080 → ingress-nginx:80 (Docker Desktop k8s does not publish
+# LoadBalancer/NodePort to the host, so we tunnel through kubectl).
+# Run in its own terminal; keep alive while using the app.
+k8s-forward:
+	kubectl port-forward -n ingress-nginx svc/ingress-nginx-controller 8080:80
 
 # ── Minikube helpers ───────────────────────────────────────────────────────────
 

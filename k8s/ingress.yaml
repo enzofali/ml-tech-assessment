@@ -24,22 +24,37 @@ spec:
                 port:
                   number: 8000
 
-          # Grafana — /grafana/... → /...
-          # Requires GF_SERVER_ROOT_URL=http://localhost/grafana
-          #          GF_SERVER_SERVE_FROM_SUB_PATH=true
-          - path: /grafana(/|$)(.*)
-            pathType: ImplementationSpecific
-            backend:
-              service:
-                name: grafana
-                port:
-                  number: 3000
-
           # Frontend — catch-all, path preserved
           - path: /()(.*)
             pathType: ImplementationSpecific
             backend:
               service:
                 name: frontend
+                port:
+                  number: 3000
+---
+# Grafana lives on its own Ingress because it needs the /grafana prefix
+# preserved in the path (paired with GF_SERVER_SERVE_FROM_SUB_PATH=true).
+# The other Ingress strips prefixes via rewrite-target.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: transcript-grafana-ingress
+  namespace: transcript-analyzer
+  annotations:
+    # Regex match without rewrite-target → /grafana/... is forwarded as-is.
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+spec:
+  ingressClassName: nginx
+  rules:
+    - http:
+        paths:
+          - path: /grafana(/|$).*
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: grafana
                 port:
                   number: 3000
