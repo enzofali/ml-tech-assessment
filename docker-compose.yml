@@ -4,13 +4,13 @@ services:
     ports:
       - "5432:5432"
     environment:
-      POSTGRES_USER: transcript
-      POSTGRES_PASSWORD: transcript
-      POSTGRES_DB: transcript
+      POSTGRES_USER: ${POSTGRES_USER:-transcript}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-transcript}
+      POSTGRES_DB: ${POSTGRES_DB:-transcript}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U transcript"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-transcript}"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -19,7 +19,9 @@ services:
     build: .
     env_file: .env
     environment:
-      DATABASE_URL: postgresql://transcript:transcript@postgres:5432/transcript
+      DATABASE_URL: ${DATABASE_URL:-postgresql://transcript:transcript@postgres:5432/transcript}
+      ROOT_PATH: /api  # nginx strips /api before forwarding; FastAPI needs to know
+      TRUST_FORWARDED_FOR: "true"  # nginx sets X-Forwarded-For; rate-limit per real client IP
     depends_on:
       postgres:
         condition: service_healthy

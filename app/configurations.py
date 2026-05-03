@@ -13,3 +13,7 @@ class EnvConfigs(pydantic_settings.BaseSettings):
     # Guardrails
     MAX_BATCH_SIZE: int = 10  # max transcripts accepted per /transcripts/batch call
     RATE_LIMIT_PER_MINUTE: int = 60  # per-IP cap on POST /transcripts*; 0 disables
+
+    # Deployment topology
+    ROOT_PATH: str = ""  # set to "/api" when behind nginx that strips /api prefix
+    TRUST_FORWARDED_FOR: bool = False  # enable when behind a known proxy (Railway, ALB, ingress)
