@@ -5,4 +5,4 @@ scrape_configs:
   - job_name: transcript-api
     metrics_path: /metrics
     static_configs:
-      - targets: ["${API_TARGET}"]
+      - targets: ["__API_TARGET__"]
