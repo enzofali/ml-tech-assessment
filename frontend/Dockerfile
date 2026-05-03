@@ -20,7 +20,10 @@ COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/public* ./public/
 
-EXPOSE 3000
+# EXPOSE 8080 to match Railway's $PORT injection — without this, Railway's
+# auto-detection routes public traffic to the wrong port. EXPOSE is metadata
+# only; local docker-compose port mappings still work regardless.
+EXPOSE 8080
 ENV HOSTNAME=0.0.0.0
 # Next.js's standalone server reads $PORT directly. Railway injects it; we
 # default to 3000 for local docker.
