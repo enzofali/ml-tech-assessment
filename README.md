@@ -1,6 +1,6 @@
 # Transcript Analyzer
 
-A full-stack app that analyzes coaching session transcripts using structured LLM output and returns a concise **summary** plus **action items**. FastAPI backend · Next.js frontend · Prometheus + Grafana observability.
+A full-stack app that analyzes coaching session transcripts using structured LLM output and returns a concise **summary** plus **action items**. FastAPI backend · Next.js frontend · Postgres · Prometheus + Grafana observability.
 
 ---
 
@@ -18,7 +18,7 @@ The public demo intentionally points at the stable `0.0.1` Railway deployment. T
 
 ## Quick Start
 
-**Prerequisites:** [Docker Desktop](https://www.docker.com/products/docker-desktop/), [Node.js 18+](https://nodejs.org/), a free [Groq API key](https://console.groq.com/)
+**Prerequisites:** [Docker Desktop](https://www.docker.com/products/docker-desktop/), a free [Groq API key](https://console.groq.com/)
 
 ```bash
 # 1. Clone
@@ -63,13 +63,52 @@ Hexagonal (ports & adapters) with clear layer separation:
 app/
 ├── ports/          # Interfaces — LLm, AnalysisRepository
 ├── adapters/       # OpenAI · Gemini · Groq adapters implementing the LLm port
-├── repositories/   # In-memory repository implementing AnalysisRepository
+├── repositories/   # InMemory · SQLite · Postgres implementations of AnalysisRepository
 ├── models/         # Domain entity (TranscriptAnalysis) + LLM DTO
 ├── services/       # Business logic (TranscriptService)
 └── api/            # FastAPI routes + dependency injection wiring
 ```
 
-The service layer depends only on port interfaces. Adapters are injected at runtime via FastAPI's DI system, making every layer independently unit-testable.
+The service layer depends only on port interfaces. Adapters are injected at runtime via FastAPI's DI system, making every layer independently unit-testable. Set `DATABASE_URL` to switch from in-memory to Postgres without touching any other code.
+
+### Service diagram
+
+```
+                        Browser
+                           │
+                        :80│
+                           ▼
+               ┌───────────────────────┐
+               │         nginx         │
+               │  /        → frontend  │
+               │  /api/    → api       │
+               │  /grafana/→ grafana   │
+               └──┬────────┬───────────┘
+                  │        │
+                  ▼        ▼
+          ┌──────────┐  ┌──────────────────────────┐
+          │ frontend │  │           api             │
+          │ Next.js  │  │  FastAPI · structured LLM │
+          │standalone│  │  GET /metrics (Prometheus)│
+          └──────────┘  └───┬──────────────┬────────┘
+                             │              │
+                             ▼              ▼
+                      ┌──────────┐   ┌─────────────┐
+                      │ postgres │   │   LLM API   │
+                      │  :5432   │   │ Groq/OpenAI │
+                      │  (named  │   │   /Gemini   │
+                      │  volume) │   └─────────────┘
+                      └──────────┘
+                                        ▲
+               ┌────────────────────────┘
+               │   scrapes /metrics every 15s
+               │
+          ┌────┴─────┐        ┌─────────────────┐
+          │prometheus│──────▶ │     grafana      │
+          │  :9090   │        │  21-panel dash   │
+          └──────────┘        │  auto-provisioned│
+                              └─────────────────┘
+```
 
 ### Service diagram
 
@@ -136,19 +175,21 @@ Grafana default login: `admin` / `admin`.
 Create a `.env` file in the project root:
 
 ```env
-# Provider: openai | gemini | groq  (default: groq)
-LLM_PROVIDER=groq
+# Required
+LLM_PROVIDER=groq                     # openai | gemini | groq (default: groq)
 LLM_API_KEY=your-api-key-here
 LLM_MODEL=llama-3.3-70b-versatile   # optional — this is the groq default
 DATABASE_URL=postgresql://transcript:transcript@postgres:5432/transcript
 ```
+
+`DATABASE_URL` is set automatically by docker-compose to the bundled Postgres instance. Only set it manually when pointing at an external database.
 
 **Model defaults per provider:**
 
 | Provider | Default model              | Free tier |
 |----------|---------------------------|-----------|
 | `groq`   | `llama-3.3-70b-versatile` | Yes       |
-| `gemini` | `gemini-2.5-flash`        | No       |
+| `gemini` | `gemini-2.5-flash`        | No        |
 | `openai` | _(must set explicitly)_   | No        |
 
 When `DATABASE_URL` is unset, the API falls back to the in-memory repository used in `0.0.1`.
@@ -188,7 +229,7 @@ Kubernetes resources include namespace, API/frontend deployments and services, P
 
 ## API Reference
 
-Full interactive docs: **`/docs`** (Swagger UI) · **`/redoc`** (ReDoc)
+Full interactive docs: **`/api/docs`** (Swagger UI) · **`/api/redoc`** (ReDoc)
 
 ### Endpoints
 
@@ -289,7 +330,7 @@ The API exposes a `/metrics` endpoint in Prometheus format. Three layers of inst
 | Metric                        | Type    | Labels               | Description                              |
 |-------------------------------|---------|----------------------|------------------------------------------|
 | `repository_operations_total` | Counter | `operation`, `result`| Operations: `save/get/list/delete` × `success/miss/error` |
-| `repository_size`             | Gauge   | —                    | Number of analyses currently in memory   |
+| `repository_size`             | Gauge   | —                    | Number of analyses currently stored      |
 | `batch_size`                  | Histogram | —                  | Transcripts per batch request (buckets: 1–50) |
 
 ### HTTP + process metrics
@@ -355,6 +396,8 @@ The live reviewer demo is the `0.0.1` Railway deployment from `release/0.0.1`. T
 
 ### Cloudflare Tunnel
 
+Expose the full stack publicly from your local machine — no domain or cloud account required.
+
 **1. Install cloudflared**
 
 ```bash
@@ -393,7 +436,7 @@ The command prints a public `https://*.trycloudflare.com` URL. Share the paths w
 ## Running Tests
 
 ```bash
-# All tests (unit + E2E)
+# Unit + E2E
 poetry run pytest
 
 # Verbose output
@@ -402,11 +445,14 @@ poetry run pytest -v
 # Only E2E (full HTTP stack, mocked LLM)
 poetry run pytest tests/api/
 
-# Only unit tests
-poetry run pytest tests/services/ tests/repositories/
+# Only repository unit tests
+poetry run pytest tests/repositories/
+
+# Postgres integration tests (requires running Postgres)
+pytest tests/adapters/test_postgres_repository.py
 ```
 
-> `tests/adapters/` requires a live API key and is excluded from the default run.
+> `tests/adapters/` requires a live DB or API key and is excluded from the default run. Postgres tests auto-skip when the DB is unreachable.
 
 ---
 
