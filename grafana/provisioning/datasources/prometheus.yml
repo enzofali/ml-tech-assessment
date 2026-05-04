@@ -4,6 +4,6 @@ datasources:
   - name: Prometheus
     type: prometheus
     access: proxy
-    url: ${PROMETHEUS_URL:-http://prometheus.railway.internal:9090}
+    url: $PROMETHEUS_URL
     uid: prometheus
     isDefault: true
