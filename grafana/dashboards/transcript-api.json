@@ -12,22 +12,7 @@
   "title": "Transcript API",
   "uid": "transcript-api",
   "version": 1,
-  "templating": {
-    "list": [
-      {
-        "current": {},
-        "hide": 0,
-        "includeAll": false,
-        "label": "Datasource",
-        "multi": false,
-        "name": "datasource",
-        "options": [],
-        "query": "prometheus",
-        "refresh": 1,
-        "type": "datasource"
-      }
-    ]
-  },
+  "templating": { "list": [] },
   "panels": [
     {
       "type": "stat",
