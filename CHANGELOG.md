@@ -5,41 +5,43 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
-## [0.1.0] — 2026-05-02
+## [0.2.0] — 2026-05-04
 
 ### Added
 
-**Postgres repository adapter**
-- `PostgresAnalysisRepository` — full `AnalysisRepository` implementation backed by a `psycopg2` connection pool (min 1, max 10)
-- `DATABASE_URL` env var selects the adapter at runtime; omitting it falls back to in-memory with no code changes
-- Schema: `transcript_analysis(id UUID PK, summary TEXT, action_items JSONB, created_at TIMESTAMPTZ)` — auto-created on first boot
-- `DELETE WHERE id = ANY(%s::uuid[])` for batch deletes — single round-trip regardless of list size
+**Kubernetes deployment**
+- Added plain Kubernetes manifests for namespace, API, frontend, Postgres, Prometheus, Grafana, ingress, secrets, PVCs, services, and API HPA
+- Added Docker Desktop / minikube-friendly ingress setup with `/api`, `/`, and `/grafana` routes
+- Added `k8s/secrets.example.yaml` so real LLM and database credentials stay out of source control
 
-**Service decoupling**
-- Frontend now runs as a dedicated container (multi-stage Next.js standalone Dockerfile)
-- nginx reverse proxy on port 80 routes all traffic: `/api/` → FastAPI, `/grafana/` → Grafana, `/` → Next.js
+**Operations**
+- Added a `Makefile` for local image builds, Docker Compose lifecycle, Kubernetes deploy/teardown/status, ingress forwarding, and minikube helpers
+- Added Grafana dashboard ConfigMap generation from the checked-in dashboard JSON
+- Added Kubernetes status and port-forward commands for local reviewer verification
 
-**docker-compose**
-- Added `postgres` service (Postgres 16 Alpine) with healthcheck; `api` waits for healthy signal before starting
-- Added `frontend` service built with `NEXT_PUBLIC_API_URL=http://localhost/api` baked in
-- Added `nginx` service mounting `nginx/nginx.conf`; only nginx exposes a host port (80)
-- Grafana configured with `GF_SERVER_SERVE_FROM_SUB_PATH=true` for correct sub-path asset resolution
-- Named volume `postgres_data` persists analyses across restarts; survives `docker compose down` (requires `-v` to wipe)
+### Fixed
 
-**Tests**
-- Added 4 `delete_many` test cases to the shared repository fixture: partial delete, missing IDs, empty list, all missing
-- Fixed `SQLiteInMemoryAnalysisRepository` — missing `delete_many` made it uninstantiable as an ABC; implemented using `DELETE WHERE id IN (?,…)` with dynamic placeholders
-- Added 13 Postgres integration tests in `tests/adapters/test_postgres_repository.py`; auto-skip when DB is unreachable; excluded from default `pytest` run
+- Adjusted Kubernetes manifests so the Docker Desktop deployment can run end-to-end locally
+- Preserved Grafana sub-path routing under `/grafana`
+
+## [0.1.0] — 2026-05-03
+
+### Added
+
+**Decoupled services**
+- Added a Postgres repository adapter behind the existing `AnalysisRepository` port
+- Added `DATABASE_URL` configuration; the API falls back to in-memory storage when unset
+- Added a dedicated frontend container so the Next.js UI can run independently from the API
+- Added nginx routing for frontend, API, and Grafana behind a single local entry point
+
+**Persistence**
+- Added Postgres service and persistent volume to Docker Compose
+- Added repository coverage for the Postgres-backed implementation
 
 ### Changed
 
-- `app/api/dependencies.py` — `get_repository()` now switches on `DATABASE_URL`; return type widened to `AnalysisRepository` port
-- `app/configurations.py` — added optional `DATABASE_URL: str | None = None`
-- `frontend/next.config.ts` — added `output: "standalone"` required for the standalone Docker build
-- `docker-compose.yml` — postgres port `5432` exposed to host to allow integration tests to run against the live container
-- README — updated Quick Start (single port, no Node prerequisite), URL table, env vars, Cloudflare tunnel (one tunnel not three), removed stale "Next Steps" migration items that are now shipped
-
----
+- Updated Docker Compose from the `0.0.1` monolith-oriented setup to a decoupled stack with Postgres, API, frontend, nginx, Prometheus, and Grafana
+- Updated frontend configuration to consume the API through the routed public URL
 
 ## [0.0.1] — 2026-05-02
 

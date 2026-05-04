@@ -4,6 +4,18 @@ A full-stack app that analyzes coaching session transcripts using structured LLM
 
 ---
 
+## What's deployed vs what's built
+
+| Version | Branch / tag | Status | What it contains |
+|---|---|---|---|
+| `0.0.1` | `release/0.0.1` / `v0.0.1` | Live Railway demo | Monolith-oriented assessment release with FastAPI, Next.js, Prometheus, and Grafana fixes for Railway deployment. |
+| `0.1.0` | `release/0.1.0` / `v0.1.0` | Built locally | Decoupled services: Postgres repository adapter, independent frontend container, and nginx routing in Docker Compose. |
+| `0.2.0` | `release/0.2.0` / `v0.2.0` | Built locally | Kubernetes manifests plus `Makefile` commands for API, frontend, Postgres, Prometheus, Grafana, ingress, PVCs, secrets, and HPA. |
+
+The public demo intentionally points at the stable `0.0.1` Railway deployment. The newest implementation work lives in `0.2.0`; this README documents that highest release so reviewers can see both the deployed artifact and the production-shaped path.
+
+---
+
 ## Quick Start
 
 **Prerequisites:** [Docker Desktop](https://www.docker.com/products/docker-desktop/), a free [Groq API key](https://console.groq.com/)
@@ -19,7 +31,7 @@ LLM_API_KEY=your-groq-key-here
 LLM_MODEL=llama-3.3-70b-versatile
 EOF
 
-# 3. Start everything
+# 3. Start the full decoupled stack
 docker compose up --build -d
 ```
 
@@ -74,7 +86,7 @@ The service layer depends only on port interfaces. Adapters are injected at runt
                └──┬────────┬───────────┘
                   │        │
                   ▼        ▼
-          ┌──────────┐  ┌──────────────────────────┐
+          ┌──────────┐  ┌───────────────────────────┐
           │ frontend │  │           api             │
           │ Next.js  │  │  FastAPI · structured LLM │
           │standalone│  │  GET /metrics (Prometheus)│
@@ -91,11 +103,11 @@ The service layer depends only on port interfaces. Adapters are injected at runt
                ┌────────────────────────┘
                │   scrapes /metrics every 15s
                │
-          ┌────┴─────┐        ┌─────────────────┐
+          ┌────┴─────┐        ┌──────────────────┐
           │prometheus│──────▶ │     grafana      │
           │  :9090   │        │  21-panel dash   │
           └──────────┘        │  auto-provisioned│
-                              └─────────────────┘
+                              └──────────────────┘
 ```
 
 ---
@@ -104,18 +116,18 @@ The service layer depends only on port interfaces. Adapters are injected at runt
 
 ### Docker Compose
 
+Runs Postgres, the API, the frontend, nginx, Prometheus, and Grafana in one command. No Python or Node install required.
 
 ```bash
 docker compose up --build
 ```
 
-| Service    | URL                          |
-|------------|------------------------------|
-| Frontend   | http://localhost             |
-| API        | http://localhost/api         |
-| Swagger UI | http://localhost/api/docs    |
-| Grafana    | http://localhost/grafana     |
-| Prometheus | http://localhost:9090        |
+| Service    | URL                        |
+|------------|----------------------------|
+| Frontend   | http://localhost           |
+| API        | http://localhost/api       |
+| Swagger UI | http://localhost/api/docs  |
+| Grafana    | http://localhost/grafana   |
 
 Grafana default login: `admin` / `admin`.
 
@@ -127,10 +139,8 @@ Create a `.env` file in the project root:
 # Required
 LLM_PROVIDER=groq                     # openai | gemini | groq (default: groq)
 LLM_API_KEY=your-api-key-here
-LLM_MODEL=llama-3.3-70b-versatile     # optional — this is the groq default
-
-# Optional — omit to use the in-memory repository
-DATABASE_URL=postgresql://user:pass@host:5432/db
+LLM_MODEL=llama-3.3-70b-versatile   # optional — this is the groq default
+DATABASE_URL=postgresql://transcript:transcript@postgres:5432/transcript
 ```
 
 `DATABASE_URL` is set automatically by docker-compose to the bundled Postgres instance. Only set it manually when pointing at an external database.
@@ -142,6 +152,39 @@ DATABASE_URL=postgresql://user:pass@host:5432/db
 | `groq`   | `llama-3.3-70b-versatile` | Yes       |
 | `gemini` | `gemini-2.5-flash`        | No        |
 | `openai` | _(must set explicitly)_   | No        |
+
+When `DATABASE_URL` is unset, the API falls back to the in-memory repository used in `0.0.1`.
+
+### Kubernetes
+
+The `0.2.0` release adds plain Kubernetes manifests under [`k8s/`](k8s/) and helper commands in [`Makefile`](Makefile).
+
+```bash
+# Build local images
+make build
+
+# Create secrets from the example, then fill in real values
+cp k8s/secrets.example.yaml k8s/secrets.yaml
+
+# First-time cluster helpers for Docker Desktop / minikube-style clusters
+make k8s-install-ingress
+make k8s-install-metrics-server
+
+# Deploy the app stack
+make k8s-up
+make k8s-status
+
+# In a separate terminal, expose ingress locally
+make k8s-forward
+```
+
+| Service | URL |
+|---|---|
+| Frontend | http://localhost:8080 |
+| API + Swagger | http://localhost:8080/api/docs |
+| Grafana | http://localhost:8080/grafana |
+
+Kubernetes resources include namespace, API/frontend deployments and services, Postgres with PVC, Prometheus with PVC/config, Grafana with PVC/dashboard config, nginx ingress rules, secret template, and API HPA.
 
 ---
 
@@ -308,6 +351,10 @@ The dashboard JSON lives at [grafana/dashboards/transcript-api.json](grafana/das
 
 ## Deployment
 
+### Railway
+
+The live reviewer demo is the `0.0.1` Railway deployment from `release/0.0.1`. That deployment favors a compact monolith so the assessment has a reliable public URL.
+
 ### Cloudflare Tunnel
 
 Expose the full stack publicly from your local machine — no domain or cloud account required.
@@ -329,19 +376,19 @@ curl -L https://github.com/cloudflare/cloudflared/releases/latest/download/cloud
 docker compose up -d
 ```
 
-**3. Open a single tunnel** — nginx exposes everything on port 80
+**3. Open a tunnel for nginx**
 
 ```bash
-cloudflared tunnel --url http://localhost:80
+cloudflared tunnel --url http://localhost
 ```
 
-Share the printed URL with the reviewer:
+The command prints a public `https://*.trycloudflare.com` URL. Share the paths with the reviewer:
 
-| Path | What they see |
-|---|---|
-| `https://xxxx.trycloudflare.com` | Frontend |
-| `https://xxxx.trycloudflare.com/api/docs` | Swagger UI |
-| `https://xxxx.trycloudflare.com/grafana` | Grafana (login: `admin` / `admin`) |
+| Service | URL |
+|---------|-----|
+| Frontend | `https://xxxx.trycloudflare.com` |
+| API + Swagger | `https://xxxx.trycloudflare.com/api/docs` |
+| Grafana | `https://xxxx.trycloudflare.com/grafana` (login: `admin` / `admin`) |
 
 > The tunnel stays alive as long as the terminal is open. Your machine is the server.
 
@@ -405,6 +452,15 @@ Server Components fetch directly on the server — no loading spinners, no clien
 | History | `/history` | List of all stored analyses with summary preview, date, and action item count |
 | Detail | `/transcripts/:id` | Full analysis view with delete button |
 
+### Configuration
+
+The only config needed is the API URL:
+
+```bash
+# frontend/.env.local
+NEXT_PUBLIC_API_URL=http://localhost/api
+```
+
 ### Sample files
 
 The `resources/` directory contains four mock transcripts in every supported format, ready to drag onto the analyze page:
@@ -415,3 +471,41 @@ The `resources/` directory contains four mock transcripts in every supported for
 | `product_team_standup.srt` | SRT | Sprint retro |
 | `leadership_coaching.vtt` | WebVTT | Manager overwhelm + delegation |
 | `onboarding_coaching.txt` | Timestamped `[HH:MM:SS]` | New hire first month |
+
+---
+
+## Release Evolution
+
+The project moved from a deployable assessment monolith to a decoupled local stack and then to Kubernetes manifests:
+
+### 0.2.0 architecture
+
+```
+Internet
+    │
+    ▼
+Nginx Ingress (LoadBalancer)
+    ├── /api          → API Deployment (N replicas)
+    ├── /             → Frontend Deployment
+    └── grafana.x.com → Grafana (via kube-prometheus-stack)
+
+K8s Cluster
+    ├── api-deployment         FastAPI × N replicas
+    ├── frontend-deployment    React / Next.js
+    ├── postgres               PersistentVolumeClaim (decoupled store)
+    ├── prometheus             Scrapes API + K8s node metrics
+    └── grafana                Pre-loaded dashboard, viewer access for reviewers
+```
+
+### Remaining production hardening
+
+1. **Managed infrastructure** — deploy the manifests to GKE Autopilot, DigitalOcean DOKS, or another managed cluster instead of Docker Desktop.
+
+2. **Monitoring stack** — replace the lightweight in-repo Prometheus/Grafana manifests with [`kube-prometheus-stack`](https://github.com/prometheus-community/helm-charts/tree/main/charts/kube-prometheus-stack) or Grafana Cloud for node, pod, AlertManager, and long-retention metrics.
+   ```bash
+   helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+   helm install monitoring prometheus-community/kube-prometheus-stack \
+     --namespace monitoring --create-namespace
+   ```
+
+3. **Secrets and images** — move secrets to a managed secret store and publish immutable image tags to a registry instead of relying on local `:latest` builds.
