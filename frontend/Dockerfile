@@ -26,5 +26,7 @@ COPY --from=builder /app/public* ./public/
 EXPOSE 8080
 ENV HOSTNAME=0.0.0.0
 # Next.js's standalone server reads $PORT directly. Railway injects it; we
-# default to 3000 for local docker.
-CMD ["sh", "-c", "PORT=${PORT:-3000} exec node server.js"]
+# default to 8080 to match the EXPOSE directive above.
+HEALTHCHECK --interval=5s --timeout=10s --start-period=5s --retries=3 \
+  CMD node -e "require('http').get('http://localhost:8080/', (r) => {if (r.statusCode !== 200) throw new Error(r.statusCode)})"
+CMD ["sh", "-c", "PORT=${PORT:-8080} node server.js"]
