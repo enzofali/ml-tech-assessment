@@ -1,12 +1,18 @@
 import fastapi
 from fastapi.middleware.cors import CORSMiddleware
 from prometheus_fastapi_instrumentator import Instrumentator
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 from app.api import routes
+from app.api.rate_limit import limiter
+from app.configurations import EnvConfigs
+
+_settings = EnvConfigs()
 
 app = fastapi.FastAPI(
     title="Transcript Analyzer API",
     version="1.0.0",
-    root_path="/api",
+    root_path=_settings.ROOT_PATH,
     description="""
 Analyzes plain-text coaching session transcripts using **OpenAI structured output**
 and returns a concise **summary** of key discussion points plus a list of **action items**.
@@ -27,6 +33,9 @@ and returns a concise **summary** of key discussion points plus a list of **acti
         }
     ],
 )
+
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 app.add_middleware(
     CORSMiddleware,

@@ -4,6 +4,7 @@ from typing import Annotated
 import pydantic
 import fastapi
 from app.api.dependencies import get_service
+from app.api.rate_limit import limiter, RATE_LIMIT, MAX_BATCH_SIZE
 from app.metrics import batch_size
 from app.ports.llm import LLMError
 from app.services.transcript import TranscriptService
@@ -85,7 +86,6 @@ class BatchAnalyzeRequest(pydantic.BaseModel):
     transcripts: list[Annotated[str, pydantic.Field(min_length=1, max_length=50_000)]] = pydantic.Field(
         description="List of transcripts to analyze concurrently. Format is auto-detected per item.",
         min_length=1,
-        max_length=50,
     )
 
     @pydantic.field_validator("transcripts")
@@ -93,6 +93,8 @@ class BatchAnalyzeRequest(pydantic.BaseModel):
     def transcripts_not_blank(cls, v: list[str]) -> list[str]:
         if any(not t.strip() for t in v):
             raise ValueError("each transcript must be non-empty and not whitespace-only")
+        if len(v) > MAX_BATCH_SIZE:
+            raise ValueError(f"batch size exceeds limit of {MAX_BATCH_SIZE}")
         return v
 
     model_config = pydantic.ConfigDict(
@@ -142,12 +144,19 @@ def list_transcripts(service: ServiceDep):
     responses={
         201: {"description": "All transcripts analyzed successfully."},
         422: {"description": "Empty list, blank transcript, or malformed VTT/SRT (re-upload required)."},
+        429: {"description": "Rate limit exceeded — too many requests from this client."},
     },
 )
-async def analyze_transcripts_batch(request: BatchAnalyzeRequest, service: ServiceDep):
-    batch_size.observe(len(request.transcripts))
+@limiter.limit(RATE_LIMIT)
+async def analyze_transcripts_batch(
+    request: fastapi.Request,
+    response: fastapi.Response,
+    payload: BatchAnalyzeRequest,
+    service: ServiceDep,
+):
+    batch_size.observe(len(payload.transcripts))
     try:
-        return await service.analyze_batch(request.transcripts)
+        return await service.analyze_batch(payload.transcripts)
     except ValueError as e:
         raise fastapi.HTTPException(status_code=422, detail=str(e))
     except LLMError as e:
@@ -167,11 +176,18 @@ async def analyze_transcripts_batch(request: BatchAnalyzeRequest, service: Servi
     responses={
         201: {"description": "Transcript analyzed and stored successfully."},
         422: {"description": "Transcript is empty, whitespace-only, or a malformed VTT/SRT file (re-upload required)."},
+        429: {"description": "Rate limit exceeded — too many requests from this client."},
     },
 )
-def analyze_transcript(request: AnalyzeRequest, service: ServiceDep):
+@limiter.limit(RATE_LIMIT)
+def analyze_transcript(
+    request: fastapi.Request,
+    response: fastapi.Response,
+    payload: AnalyzeRequest,
+    service: ServiceDep,
+):
     try:
-        return service.analyze(request.transcript)
+        return service.analyze(payload.transcript)
     except ValueError as e:
         raise fastapi.HTTPException(status_code=422, detail=str(e))
     except LLMError as e:

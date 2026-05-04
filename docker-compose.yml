@@ -4,13 +4,13 @@ services:
     ports:
       - "5432:5432"
     environment:
-      POSTGRES_USER: transcript
-      POSTGRES_PASSWORD: transcript
-      POSTGRES_DB: transcript
+      POSTGRES_USER: ${POSTGRES_USER:-transcript}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-transcript}
+      POSTGRES_DB: ${POSTGRES_DB:-transcript}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U transcript"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-transcript}"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -19,7 +19,9 @@ services:
     build: .
     env_file: .env
     environment:
-      DATABASE_URL: postgresql://transcript:transcript@postgres:5432/transcript
+      DATABASE_URL: ${DATABASE_URL:-postgresql://transcript:transcript@postgres:5432/transcript}
+      ROOT_PATH: /api  # nginx strips /api before forwarding; FastAPI needs to know
+      TRUST_FORWARDED_FOR: "true"  # nginx sets X-Forwarded-For; rate-limit per real client IP
     depends_on:
       postgres:
         condition: service_healthy
@@ -44,26 +46,23 @@ services:
       - grafana
 
   prometheus:
-    image: prom/prometheus:latest
+    build: ./prometheus
+    environment:
+      API_TARGET: ${API_TARGET:-api:8000}  # Railway: <api-service>.railway.internal:8000
     volumes:
-      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus_data:/prometheus
-    command:
-      - "--config.file=/etc/prometheus/prometheus.yml"
-      - "--storage.tsdb.retention.time=15d"
     depends_on:
       - api
 
   grafana:
-    image: grafana/grafana:latest
+    build: ./grafana
     environment:
-      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GF_ADMIN_PASSWORD:-admin}
       GF_USERS_ALLOW_SIGN_UP: "false"
-      GF_SERVER_ROOT_URL: http://localhost/grafana
-      GF_SERVER_SERVE_FROM_SUB_PATH: "true"
+      GF_SERVER_ROOT_URL: ${GF_SERVER_ROOT_URL:-http://localhost/grafana}
+      GF_SERVER_SERVE_FROM_SUB_PATH: ${GF_SERVE_FROM_SUB_PATH:-"true"}
+      PROMETHEUS_URL: ${PROMETHEUS_URL:-http://prometheus:9090}  # consumed by datasource provisioning
     volumes:
-      - ./grafana/provisioning:/etc/grafana/provisioning:ro
-      - ./grafana/dashboards:/etc/grafana/dashboards:ro
       - grafana_data:/var/lib/grafana
     depends_on:
       - prometheus
