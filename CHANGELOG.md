@@ -5,6 +5,44 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.2.0] — 2026-05-04
+
+### Added
+
+**Kubernetes deployment**
+- Added plain Kubernetes manifests for namespace, API, frontend, Postgres, Prometheus, Grafana, ingress, secrets, PVCs, services, and API HPA
+- Added Docker Desktop / minikube-friendly ingress setup with `/api`, `/`, and `/grafana` routes
+- Added `k8s/secrets.example.yaml` so real LLM and database credentials stay out of source control
+
+**Operations**
+- Added a `Makefile` for local image builds, Docker Compose lifecycle, Kubernetes deploy/teardown/status, ingress forwarding, and minikube helpers
+- Added Grafana dashboard ConfigMap generation from the checked-in dashboard JSON
+- Added Kubernetes status and port-forward commands for local reviewer verification
+
+### Fixed
+
+- Adjusted Kubernetes manifests so the Docker Desktop deployment can run end-to-end locally
+- Preserved Grafana sub-path routing under `/grafana`
+
+## [0.1.0] — 2026-05-03
+
+### Added
+
+**Decoupled services**
+- Added a Postgres repository adapter behind the existing `AnalysisRepository` port
+- Added `DATABASE_URL` configuration; the API falls back to in-memory storage when unset
+- Added a dedicated frontend container so the Next.js UI can run independently from the API
+- Added nginx routing for frontend, API, and Grafana behind a single local entry point
+
+**Persistence**
+- Added Postgres service and persistent volume to Docker Compose
+- Added repository coverage for the Postgres-backed implementation
+
+### Changed
+
+- Updated Docker Compose from the `0.0.1` monolith-oriented setup to a decoupled stack with Postgres, API, frontend, nginx, Prometheus, and Grafana
+- Updated frontend configuration to consume the API through the routed public URL
+
 ## [0.0.1] — 2026-05-02
 
 ### Added

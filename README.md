@@ -4,6 +4,18 @@ A full-stack app that analyzes coaching session transcripts using structured LLM
 
 ---
 
+## What's deployed vs what's built
+
+| Version | Branch / tag | Status | What it contains |
+|---|---|---|---|
+| `0.0.1` | `release/0.0.1` / `v0.0.1` | Live Railway demo | Monolith-oriented assessment release with FastAPI, Next.js, Prometheus, and Grafana fixes for Railway deployment. |
+| `0.1.0` | `release/0.1.0` / `v0.1.0` | Built locally | Decoupled services: Postgres repository adapter, independent frontend container, and nginx routing in Docker Compose. |
+| `0.2.0` | `release/0.2.0` / `v0.2.0` | Built locally | Kubernetes manifests plus `Makefile` commands for API, frontend, Postgres, Prometheus, Grafana, ingress, PVCs, secrets, and HPA. |
+
+The public demo intentionally points at the stable `0.0.1` Railway deployment. The newest implementation work lives in `0.2.0`; this README documents that highest release so reviewers can see both the deployed artifact and the production-shaped path.
+
+---
+
 ## Quick Start
 
 **Prerequisites:** [Docker Desktop](https://www.docker.com/products/docker-desktop/), [Node.js 18+](https://nodejs.org/), a free [Groq API key](https://console.groq.com/)
@@ -19,24 +31,21 @@ LLM_API_KEY=your-groq-key-here
 LLM_MODEL=llama-3.3-70b-versatile
 EOF
 
-# 3. Start the backend + Prometheus + Grafana
+# 3. Start the full decoupled stack
 docker compose up --build -d
-
-# 4. Start the frontend
-cd frontend && npm install && npm run dev
 ```
 
 | Service | URL | Credentials |
 |---|---|---|
-| Frontend | http://localhost:3000 | — |
-| API + Swagger | http://localhost:8000/docs | — |
-| Grafana dashboard | http://localhost:3002 | `admin` / `admin` |
+| Frontend | http://localhost | — |
+| API + Swagger | http://localhost/api/docs | — |
+| Grafana dashboard | http://localhost/grafana | `admin` / `admin` |
 
-Open http://localhost:3000, drag in one of the sample transcripts from [`resources/`](resources/), and hit **Analyze**.
+Open http://localhost, drag in one of the sample transcripts from [`resources/`](resources/), and hit **Analyze**.
 
 ### Viewing the Grafana dashboard
 
-1. Open http://localhost:3002
+1. Open http://localhost/grafana
 2. Log in with `admin` / `admin`
 3. Click **Dashboards** in the left sidebar → select **Transcript API**
 
@@ -68,7 +77,7 @@ The service layer depends only on port interfaces. Adapters are injected at runt
 
 ### Docker Compose
 
-Runs the API, Prometheus, and Grafana in one command. No Python install required.
+Runs Postgres, the API, the frontend, nginx, Prometheus, and Grafana in one command. No Python or Node install required.
 
 ```bash
 docker compose up --build
@@ -76,22 +85,12 @@ docker compose up --build
 
 | Service    | URL                        |
 |------------|----------------------------|
-| API        | http://localhost:8000      |
-| Swagger UI | http://localhost:8000/docs |
-| Prometheus | http://localhost:9090      |
-| Grafana    | http://localhost:3002      |
+| Frontend   | http://localhost           |
+| API        | http://localhost/api       |
+| Swagger UI | http://localhost/api/docs  |
+| Grafana    | http://localhost/grafana   |
 
 Grafana default login: `admin` / `admin`.
-
-**Frontend** (run separately — see [Frontend](#frontend) section below):
-
-```bash
-cd frontend && npm install && npm run dev
-```
-
-| Service  | URL                   |
-|----------|-----------------------|
-| Frontend | http://localhost:3000 |
 
 ### Environment variables
 
@@ -102,6 +101,7 @@ Create a `.env` file in the project root:
 LLM_PROVIDER=groq
 LLM_API_KEY=your-api-key-here
 LLM_MODEL=llama-3.3-70b-versatile   # optional — this is the groq default
+DATABASE_URL=postgresql://transcript:transcript@postgres:5432/transcript
 ```
 
 **Model defaults per provider:**
@@ -111,6 +111,39 @@ LLM_MODEL=llama-3.3-70b-versatile   # optional — this is the groq default
 | `groq`   | `llama-3.3-70b-versatile` | Yes       |
 | `gemini` | `gemini-2.5-flash`        | No       |
 | `openai` | _(must set explicitly)_   | No        |
+
+When `DATABASE_URL` is unset, the API falls back to the in-memory repository used in `0.0.1`.
+
+### Kubernetes
+
+The `0.2.0` release adds plain Kubernetes manifests under [`k8s/`](k8s/) and helper commands in [`Makefile`](Makefile).
+
+```bash
+# Build local images
+make build
+
+# Create secrets from the example, then fill in real values
+cp k8s/secrets.example.yaml k8s/secrets.yaml
+
+# First-time cluster helpers for Docker Desktop / minikube-style clusters
+make k8s-install-ingress
+make k8s-install-metrics-server
+
+# Deploy the app stack
+make k8s-up
+make k8s-status
+
+# In a separate terminal, expose ingress locally
+make k8s-forward
+```
+
+| Service | URL |
+|---|---|
+| Frontend | http://localhost:8080 |
+| API + Swagger | http://localhost:8080/api/docs |
+| Grafana | http://localhost:8080/grafana |
+
+Kubernetes resources include namespace, API/frontend deployments and services, Postgres with PVC, Prometheus with PVC/config, Grafana with PVC/dashboard config, nginx ingress rules, secret template, and API HPA.
 
 ---
 
@@ -148,7 +181,7 @@ No `format` field needed — the API auto-detects from content:
 **Single transcript**
 
 ```bash
-curl -X POST http://localhost:8000/transcripts \
+curl -X POST http://localhost/api/transcripts \
   -H "Content-Type: application/json" \
   -d '{
     "transcript": "Alice | Coach: How have you been since our last session?\n\nBob: Much better. I finished the report.\n\nAlice | Coach: What helped?\n\nBob: Breaking it into daily tasks."
@@ -172,7 +205,7 @@ Response `201`:
 **Batch (concurrent, up to 50 transcripts)**
 
 ```bash
-curl -X POST http://localhost:8000/transcripts/batch \
+curl -X POST http://localhost/api/transcripts/batch \
   -H "Content-Type: application/json" \
   -d '{
     "transcripts": [
@@ -185,13 +218,13 @@ curl -X POST http://localhost:8000/transcripts/batch \
 **Retrieve by ID**
 
 ```bash
-curl http://localhost:8000/transcripts/3fa85f64-5717-4562-b3fc-2c963f66afa6
+curl http://localhost/api/transcripts/3fa85f64-5717-4562-b3fc-2c963f66afa6
 ```
 
 **Delete by ID**
 
 ```bash
-curl -X DELETE http://localhost:8000/transcripts/3fa85f64-5717-4562-b3fc-2c963f66afa6
+curl -X DELETE http://localhost/api/transcripts/3fa85f64-5717-4562-b3fc-2c963f66afa6
 ```
 
 ---
@@ -236,7 +269,7 @@ Provided automatically by `prometheus-fastapi-instrumentator` and the default Pr
 
 ### Grafana dashboard
 
-When running via Docker Compose, Grafana auto-loads a pre-built dashboard called **Transcript API** with 21 panels covering every layer of the system. No manual setup — just open http://localhost:3002 (login `admin` / `admin`) → **Dashboards** → **Transcript API**.
+When running via Docker Compose, Grafana auto-loads a pre-built dashboard called **Transcript API** with 21 panels covering every layer of the system. No manual setup — just open http://localhost/grafana (login `admin` / `admin`) → **Dashboards** → **Transcript API**.
 
 #### Dashboard layout
 
@@ -277,6 +310,10 @@ The dashboard JSON lives at [grafana/dashboards/transcript-api.json](grafana/das
 
 ## Deployment
 
+### Railway
+
+The live reviewer demo is the `0.0.1` Railway deployment from `release/0.0.1`. That deployment favors a compact monolith so the assessment has a reliable public URL.
+
 ### Cloudflare Tunnel
 
 **1. Install cloudflared**
@@ -296,21 +333,19 @@ curl -L https://github.com/cloudflare/cloudflared/releases/latest/download/cloud
 docker compose up -d
 ```
 
-**3. Open a tunnel for each service** (separate terminals)
+**3. Open a tunnel for nginx**
 
 ```bash
-cloudflared tunnel --url http://localhost:8000   # API + Swagger
-cloudflared tunnel --url http://localhost:3000   # Frontend
-cloudflared tunnel --url http://localhost:3002   # Grafana dashboard
+cloudflared tunnel --url http://localhost
 ```
 
-Each command prints a public `https://*.trycloudflare.com` URL. Share both with the reviewer:
+The command prints a public `https://*.trycloudflare.com` URL. Share the paths with the reviewer:
 
 | Service | URL |
 |---------|-----|
-| API + Swagger | `https://xxxx.trycloudflare.com/docs` |
-| Frontend | `https://zzzz.trycloudflare.com` |
-| Grafana | `https://yyyy.trycloudflare.com` (login: `admin` / `admin`) |
+| Frontend | `https://xxxx.trycloudflare.com` |
+| API + Swagger | `https://xxxx.trycloudflare.com/api/docs` |
+| Grafana | `https://xxxx.trycloudflare.com/grafana` (login: `admin` / `admin`) |
 
 > The tunnel stays alive as long as the terminal is open. Your machine is the server.
 
@@ -377,7 +412,7 @@ The only config needed is the API URL:
 
 ```bash
 # frontend/.env.local
-NEXT_PUBLIC_API_URL=http://localhost:8000
+NEXT_PUBLIC_API_URL=http://localhost/api
 ```
 
 ### Sample files
@@ -393,11 +428,11 @@ The `resources/` directory contains four mock transcripts in every supported for
 
 ---
 
-## Next Steps
+## Release Evolution
 
-The current deployment is a **monolith** — API, Prometheus, and Grafana run together via Docker Compose on a single host. This is intentional as a starting point. The natural evolution is to decouple into a production-grade architecture:
+The project moved from a deployable assessment monolith to a decoupled local stack and then to Kubernetes manifests:
 
-### Target architecture
+### 0.2.0 architecture
 
 ```
 Internet
@@ -411,24 +446,20 @@ Nginx Ingress (LoadBalancer)
 K8s Cluster
     ├── api-deployment         FastAPI × N replicas
     ├── frontend-deployment    React / Next.js
-    ├── postgres StatefulSet   PersistentVolumeClaim (decoupled store)
+    ├── postgres               PersistentVolumeClaim (decoupled store)
     ├── prometheus             Scrapes API + K8s node metrics
     └── grafana                Pre-loaded dashboard, viewer access for reviewers
 ```
 
-### Migration path
+### Remaining production hardening
 
-1. **Persistent store** — swap `InMemoryAnalysisRepository` for a `PostgresAnalysisRepository` (the port interface stays unchanged). Add a Postgres `StatefulSet` + `PersistentVolumeClaim` to the cluster.
+1. **Managed infrastructure** — deploy the manifests to GKE Autopilot, DigitalOcean DOKS, or another managed cluster instead of Docker Desktop.
 
-2. **Frontend** — build a dedicated UI (separate deployment), served independently behind the same Ingress.
-
-3. **Kubernetes manifests** — write `Deployment`, `Service`, `Ingress`, and `PVC` manifests (or use Helm). Recommended cluster: GKE Autopilot (free tier) or DigitalOcean DOKS (~$12/mo).
-
-4. **Monitoring** — install [`kube-prometheus-stack`](https://github.com/prometheus-community/helm-charts/tree/main/charts/kube-prometheus-stack) via Helm. This auto-wires Prometheus + Grafana + AlertManager and adds K8s node/pod metrics on top of the existing app metrics. Expose Grafana via Ingress at `grafana.your-domain.com`.
+2. **Monitoring stack** — replace the lightweight in-repo Prometheus/Grafana manifests with [`kube-prometheus-stack`](https://github.com/prometheus-community/helm-charts/tree/main/charts/kube-prometheus-stack) or Grafana Cloud for node, pod, AlertManager, and long-retention metrics.
    ```bash
    helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
    helm install monitoring prometheus-community/kube-prometheus-stack \
      --namespace monitoring --create-namespace
    ```
-   Alternatively, use **Grafana Cloud** (free tier, 10k series) with `remote_write` from in-cluster Prometheus — user gets a public URL with a read-only Viewer account.
 
+3. **Secrets and images** — move secrets to a managed secret store and publish immutable image tags to a registry instead of relying on local `:latest` builds.
