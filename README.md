@@ -86,7 +86,7 @@ The service layer depends only on port interfaces. Adapters are injected at runt
                └──┬────────┬───────────┘
                   │        │
                   ▼        ▼
-          ┌──────────┐  ┌──────────────────────────┐
+          ┌──────────┐  ┌───────────────────────────┐
           │ frontend │  │           api             │
           │ Next.js  │  │  FastAPI · structured LLM │
           │standalone│  │  GET /metrics (Prometheus)│
@@ -103,50 +103,11 @@ The service layer depends only on port interfaces. Adapters are injected at runt
                ┌────────────────────────┘
                │   scrapes /metrics every 15s
                │
-          ┌────┴─────┐        ┌─────────────────┐
+          ┌────┴─────┐        ┌──────────────────┐
           │prometheus│──────▶ │     grafana      │
           │  :9090   │        │  21-panel dash   │
           └──────────┘        │  auto-provisioned│
-                              └─────────────────┘
-```
-
-### Service diagram
-
-```
-                        Browser
-                           │
-                        :80│
-                           ▼
-               ┌───────────────────────┐
-               │         nginx         │
-               │  /        → frontend  │
-               │  /api/    → api       │
-               │  /grafana/→ grafana   │
-               └──┬────────┬───────────┘
-                  │        │
-                  ▼        ▼
-          ┌──────────┐  ┌──────────────────────────┐
-          │ frontend │  │           api             │
-          │ Next.js  │  │  FastAPI · structured LLM │
-          │standalone│  │  GET /metrics (Prometheus)│
-          └──────────┘  └───┬──────────────┬────────┘
-                             │              │
-                             ▼              ▼
-                      ┌──────────┐   ┌─────────────┐
-                      │ postgres │   │   LLM API   │
-                      │  :5432   │   │ Groq/OpenAI │
-                      │  (named  │   │   /Gemini   │
-                      │  volume) │   └─────────────┘
-                      └──────────┘
-                                        ▲
-               ┌────────────────────────┘
-               │   scrapes /metrics every 15s
-               │
-          ┌────┴─────┐        ┌─────────────────┐
-          │prometheus│──────▶ │     grafana      │
-          │  :9090   │        │  21-panel dash   │
-          └──────────┘        │  auto-provisioned│
-                              └─────────────────┘
+                              └──────────────────┘
 ```
 
 ---
